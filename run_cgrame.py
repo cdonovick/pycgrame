@@ -13,6 +13,7 @@ parser.add_argument('--verbose', '-v', help='print debug information', action='s
 parser.add_argument('--seed', help='Seed the randomness in solvers', type=int, default=0)
 parser.add_argument('--solver', help='choose the smt solver to use for placement', default='Boolector')
 parser.add_argument('--time', '-t', action='store_true', help='Print timing information.', default=False)
+parser.add_argument('--parse-only', action='store_true', default=False, dest='parse_only')
 
 
 args = parser.parse_args()
@@ -32,6 +33,10 @@ design = Design(mods, ties)
 cgra = adlparse(fabric_file)
 mrrg = MRRG(cgra, contexts=args.contexts)
 pnr = PNR(mrrg, design, args.solver, args.seed)
+
+if args.parse_only:
+    print('success')
+    sys.exit(0)
 verbose = args.verbose
 
 funcs = (

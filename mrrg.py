@@ -162,6 +162,8 @@ class MRRG:
 
         for i in range(contexts):
             for src_address, dst_address in cgra.ties.items():
+                if src_address is None:
+                    continue
                 src_loc, src_inst, src_port = src_address
                 dst_loc, dst_inst, dst_port = dst_address
                 src = all[i, src_loc, src_inst]

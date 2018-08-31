@@ -1,6 +1,6 @@
 **TODO:**
 
-ADL parse: diagonal mesh, counter
+ADL parse: counter
 
 Optimization outerloop
 
