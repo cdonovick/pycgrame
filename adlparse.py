@@ -467,8 +467,8 @@ def adlparse(file_name : str) -> _CGRA:
         wiring = [
             #dst_row, dst_col, src_port, dst_port 
             (-1,  0, mesh.attrib['out-north'][1:], mesh.attrib['in-south'][1:]),
-            ( 0, -1, mesh.attrib['out-east'][1:] , mesh.attrib['in-west'][1:] ),
-            ( 0,  1, mesh.attrib['out-west'][1:] , mesh.attrib['in-east'][1:] ),
+            ( 0,  1, mesh.attrib['out-east'][1:] , mesh.attrib['in-west'][1:] ),
+            ( 0, -1, mesh.attrib['out-west'][1:] , mesh.attrib['in-east'][1:] ),
             ( 1,  0, mesh.attrib['out-south'][1:], mesh.attrib['in-north'][1:]),
         ]
     else:
@@ -482,13 +482,13 @@ def adlparse(file_name : str) -> _CGRA:
         interior = mesh.find('interior')
         wiring = [
             (-1,  0, mesh.attrib['out-north'][1:]    , mesh.attrib['in-south'][1:]),
-            ( 0, -1, mesh.attrib['out-east'][1:]     , mesh.attrib['in-west'][1:] ),
-            ( 0,  1, mesh.attrib['out-west'][1:]     , mesh.attrib['in-east'][1:] ),
+            ( 0,  1, mesh.attrib['out-east'][1:]     , mesh.attrib['in-west'][1:] ),
+            ( 0, -1, mesh.attrib['out-west'][1:]     , mesh.attrib['in-east'][1:] ),
             ( 1,  0, mesh.attrib['out-south'][1:]    , mesh.attrib['in-north'][1:]),
-            (-1, -1, mesh.attrib['out-northeast'][1:], mesh.attrib['in-southwest'][1:]),
-            (-1,  1, mesh.attrib['out-northwest'][1:], mesh.attrib['in-southeast'][1:]),
-            ( 1, -1, mesh.attrib['out-southeast'][1:], mesh.attrib['in-northwest'][1:]),
-            ( 1,  1, mesh.attrib['out-southwest'][1:], mesh.attrib['in-northeast'][1:]),
+            (-1,  1, mesh.attrib['out-northeast'][1:], mesh.attrib['in-southwest'][1:]),
+            (-1, -1, mesh.attrib['out-northwest'][1:], mesh.attrib['in-southeast'][1:]),
+            ( 1,  1, mesh.attrib['out-southeast'][1:], mesh.attrib['in-northwest'][1:]),
+            ( 1, -1, mesh.attrib['out-southwest'][1:], mesh.attrib['in-northeast'][1:]),
         ]
 
 
