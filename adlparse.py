@@ -455,32 +455,49 @@ def adlparse(file_name : str) -> _CGRA:
     assert len(root.findall('architecture')) == 1
     arch = root.find('architecture')
 
+    rows, cols = int(arch.attrib['row']), int(arch.attrib['col'])
+    
+    def _is_edge(row, col): return (row in {0, rows-1}) or (col in {0, cols-1})
+    def _is_corner(row, col): return (row in {0, rows-1}) and (col in {0, cols-1})
+    def _row_in_range(row): return 0 <= row < rows
+    def _col_in_range(col): return 0 <= col < cols
+
+    #src_row, src_col, src_port, dst_row, dst_col, dst_port
+    connections = []
+    mesh_builders = []
+
     if len(arch.findall('mesh')):
-        assert len(arch.findall('mesh')) == 1
+        assert int(arch.attrib['cgra-rows']) == rows - 2
+        assert int(arch.attrib['cgra-cols']) == cols - 2
         assert len(arch.findall('diagonal')) == 0
+        assert len(arch.findall('pattern')) == 0
         mesh = arch.find('mesh')
 
         assert mesh.attrib['io'] == "every-side-port"
         assert len(mesh.findall('interior')) == 1
 
         interior = mesh.find('interior')
-        wiring = [
-            #dst_row, dst_col, src_port, dst_port 
+            
+        mesh_builders = [ 
             (-1,  0, mesh.attrib['out-north'][1:], mesh.attrib['in-south'][1:]),
             ( 0,  1, mesh.attrib['out-east'][1:] , mesh.attrib['in-west'][1:] ),
             ( 0, -1, mesh.attrib['out-west'][1:] , mesh.attrib['in-east'][1:] ),
             ( 1,  0, mesh.attrib['out-south'][1:], mesh.attrib['in-north'][1:]),
         ]
-    else:
+
+    elif len(arch.findall('diagonal')) == 1:
+        assert int(arch.attrib['cgra-rows']) == rows - 2
+        assert int(arch.attrib['cgra-cols']) == cols - 2
         assert len(arch.findall('mesh')) == 0
-        assert len(arch.findall('diagonal')) == 1
+        assert len(arch.findall('pattern')) == 0
         mesh = arch.find('diagonal')
 
         assert mesh.attrib['io'] == "every-side-port"
         assert len(mesh.findall('interior')) == 1
 
         interior = mesh.find('interior')
-        wiring = [
+
+        mesh_builders = [
             (-1,  0, mesh.attrib['out-north'][1:]    , mesh.attrib['in-south'][1:]),
             ( 0,  1, mesh.attrib['out-east'][1:]     , mesh.attrib['in-west'][1:] ),
             ( 0, -1, mesh.attrib['out-west'][1:]     , mesh.attrib['in-east'][1:] ),
@@ -490,14 +507,44 @@ def adlparse(file_name : str) -> _CGRA:
             ( 1,  1, mesh.attrib['out-southeast'][1:], mesh.attrib['in-northwest'][1:]),
             ( 1, -1, mesh.attrib['out-southwest'][1:], mesh.attrib['in-northeast'][1:]),
         ]
+    else:
+        pass
+
+    for row_offset, col_offset, _src_port, _dst_port in mesh_builders:
+        for src_row in range(rows):
+            dst_row = src_row + row_offset 
+            if not _row_in_range(dst_row):
+                continue
+            for src_col in range(cols):
+                dst_col = src_col + col_offset
+
+                if not _col_in_range(dst_col):
+                    continue
 
 
-    
-    rows, cols = int(arch.attrib['row']), int(arch.attrib['col'])
-    assert int(arch.attrib['cgra-rows']) == rows - 2
-    assert int(arch.attrib['cgra-cols']) == cols - 2
-    
+                if _is_corner(src_row, src_col) or _is_corner(dst_row, dst_col):
+                    continue
 
+                src_is_io = _is_edge(src_row, src_col)
+                dst_is_io = _is_edge(dst_row, dst_col)
+
+                if src_is_io and dst_is_io:
+                    continue
+                elif dst_is_io and (row_offset != 0 and col_offset != 0):
+                    #don't wire IOs diagonaly
+                    continue
+
+                if src_is_io:
+                    src_port = 'out'
+                else:
+                    src_port = _src_port
+
+                if dst_is_io:
+                    dst_port = 'in'
+                else:
+                    dst_port = _dst_port
+
+                connections.append((src_row, src_col, src_port, dst_row, dst_col, dst_port))
     cgra = _CGRA(rows, cols)
 
     irow = int(interior.attrib.get('row', 1))
@@ -505,12 +552,6 @@ def adlparse(file_name : str) -> _CGRA:
     iblocks = [blocks[x.attrib['module']] for x in interior.findall('block')]
     
     assert irow * icol == len(iblocks) 
-    
-    def _is_edge(row, col):
-        return (row in {0, rows-1}) or (col in {0, cols-1})
-
-    def _is_corner(row, col):
-        return (row in {0, rows-1}) and (col in {0, cols-1})
         
     #build the blocks
     ridx = 0
@@ -532,28 +573,15 @@ def adlparse(file_name : str) -> _CGRA:
 
     #build unflattened ties
     ties = BiMultiDict()
-    for row in range(rows):
-        for col in range(cols):
-            src_loc = row, col
-            if src_loc not in cgra.blocks:
-                continue
-            for row_offset, col_offset, src_port, dst_port in wiring:
-                dst_loc = o_row, o_col = row + row_offset, col + col_offset 
-                if dst_loc not in cgra.blocks:
-                    continue
-                elif _is_edge(o_row, o_col):      
-                    if _is_edge(row, col):
-                        #don't wire IOs to each other
-                        continue
-                    elif col_offset != 0 and row_offset != 0:
-                        #don't wire IOs diagonaly
-                        continue  
-                    dst = dst_loc, 'in' 
-                else:
-                    dst = dst_loc, dst_port
+    for src_row, src_col, src_port, dst_row, dst_col, dst_port in connections:
+        src_loc = src_row, src_col
+        assert src_loc in cgra.blocks
+        src = src_loc, src_port
 
-                src = src_loc, src_port
-                ties[src] = dst
+        dst_loc = dst_row, dst_col
+        dst = dst_loc, dst_port
+
+        ties[src] = dst
 
     _verify_pre_flatten_cgra(cgra, ties)
     
