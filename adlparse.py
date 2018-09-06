@@ -225,8 +225,9 @@ def _verify_block(this_block : _BLOCK):
 def _verify_pre_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
     for loc, port in ties:
         assert loc in cgra.blocks, loc
-        assert isinstance(cgra.blocks[loc], _BLOCK), cgra.blocks[loc]
-        assert port in cgra.blocks[loc].output_ports
+        block = cgra.blocks[loc]
+        assert isinstance(block, _BLOCK)
+        assert port in block.output_ports
 
     for loc, port in ties.I:
         assert loc in cgra.blocks, loc
@@ -456,132 +457,170 @@ def adlparse(file_name : str) -> _CGRA:
     arch = root.find('architecture')
 
     rows, cols = int(arch.attrib['row']), int(arch.attrib['col'])
+    cgra = _CGRA(rows, cols)
     
     def _is_edge(row, col): return (row in {0, rows-1}) or (col in {0, cols-1})
     def _is_corner(row, col): return (row in {0, rows-1}) and (col in {0, cols-1})
     def _row_in_range(row): return 0 <= row < rows
     def _col_in_range(col): return 0 <= col < cols
 
-    #src_row, src_col, src_port, dst_row, dst_col, dst_port
-    connections = []
-    mesh_builders = []
 
-    if len(arch.findall('mesh')):
-        assert int(arch.attrib['cgra-rows']) == rows - 2
-        assert int(arch.attrib['cgra-cols']) == cols - 2
-        assert len(arch.findall('diagonal')) == 0
-        assert len(arch.findall('pattern')) == 0
-        mesh = arch.find('mesh')
-
-        assert mesh.attrib['io'] == "every-side-port"
-        assert len(mesh.findall('interior')) == 1
-
-        interior = mesh.find('interior')
-            
-        mesh_builders = [ 
-            (-1,  0, mesh.attrib['out-north'][1:], mesh.attrib['in-south'][1:]),
-            ( 0,  1, mesh.attrib['out-east'][1:] , mesh.attrib['in-west'][1:] ),
-            ( 0, -1, mesh.attrib['out-west'][1:] , mesh.attrib['in-east'][1:] ),
-            ( 1,  0, mesh.attrib['out-south'][1:], mesh.attrib['in-north'][1:]),
-        ]
-
-    elif len(arch.findall('diagonal')) == 1:
-        assert int(arch.attrib['cgra-rows']) == rows - 2
-        assert int(arch.attrib['cgra-cols']) == cols - 2
-        assert len(arch.findall('mesh')) == 0
-        assert len(arch.findall('pattern')) == 0
-        mesh = arch.find('diagonal')
-
-        assert mesh.attrib['io'] == "every-side-port"
-        assert len(mesh.findall('interior')) == 1
-
-        interior = mesh.find('interior')
-
-        mesh_builders = [
-            (-1,  0, mesh.attrib['out-north'][1:]    , mesh.attrib['in-south'][1:]),
-            ( 0,  1, mesh.attrib['out-east'][1:]     , mesh.attrib['in-west'][1:] ),
-            ( 0, -1, mesh.attrib['out-west'][1:]     , mesh.attrib['in-east'][1:] ),
-            ( 1,  0, mesh.attrib['out-south'][1:]    , mesh.attrib['in-north'][1:]),
-            (-1,  1, mesh.attrib['out-northeast'][1:], mesh.attrib['in-southwest'][1:]),
-            (-1, -1, mesh.attrib['out-northwest'][1:], mesh.attrib['in-southeast'][1:]),
-            ( 1,  1, mesh.attrib['out-southeast'][1:], mesh.attrib['in-northwest'][1:]),
-            ( 1, -1, mesh.attrib['out-southwest'][1:], mesh.attrib['in-northeast'][1:]),
-        ]
-    else:
-        pass
-
-    for row_offset, col_offset, _src_port, _dst_port in mesh_builders:
-        for src_row in range(rows):
-            dst_row = src_row + row_offset 
-            if not _row_in_range(dst_row):
-                continue
-            for src_col in range(cols):
-                dst_col = src_col + col_offset
-
-                if not _col_in_range(dst_col):
-                    continue
-
-
-                if _is_corner(src_row, src_col) or _is_corner(dst_row, dst_col):
-                    continue
-
-                src_is_io = _is_edge(src_row, src_col)
-                dst_is_io = _is_edge(dst_row, dst_col)
-
-                if src_is_io and dst_is_io:
-                    continue
-                elif dst_is_io and (row_offset != 0 and col_offset != 0):
-                    #don't wire IOs diagonaly
-                    continue
-
-                if src_is_io:
-                    src_port = 'out'
-                else:
-                    src_port = _src_port
-
-                if dst_is_io:
-                    dst_port = 'in'
-                else:
-                    dst_port = _dst_port
-
-                connections.append((src_row, src_col, src_port, dst_row, dst_col, dst_port))
-    cgra = _CGRA(rows, cols)
-
-    irow = int(interior.attrib.get('row', 1))
-    icol = int(interior.attrib.get('col', 1))
-    iblocks = [blocks[x.attrib['module']] for x in interior.findall('block')]
-    
-    assert irow * icol == len(iblocks) 
-        
-    #build the blocks
-    ridx = 0
-    cidx = 0
-    for r in range(rows):
-        for c in range(cols):
-            if _is_corner(r, c):
-                pass
-            elif _is_edge(r, c):
-                cgra.blocks[r,c] = io_block
-            else:
-                cgra.blocks[r,c] = iblocks[ridx * icol + cidx]
-
-            if c not in {0, cols-1}:
-                cidx = (cidx + 1) % icol
-        if r not in {0, rows-1}:
-            ridx = (ridx + 1) % irow
-
-
-    #build unflattened ties
+    #((src_row, src_col), src_port) -> ((dst_row, dst_col), dst_port)
     ties = BiMultiDict()
-    for src_row, src_col, src_port, dst_row, dst_col, dst_port in connections:
-        src_loc = src_row, src_col
-        assert src_loc in cgra.blocks
-        src = src_loc, src_port
+    
+    if len(arch.findall('mesh')) or len(arch.findall('diagonal')):
+        if len(arch.findall('mesh')):
+            assert len(arch.findall('mesh')) == 1
+            assert int(arch.attrib['cgra-rows']) == rows - 2
+            assert int(arch.attrib['cgra-cols']) == cols - 2
+            assert len(arch.findall('diagonal')) == 0
+            assert len(arch.findall('pattern')) == 0
+            mesh = arch.find('mesh')
 
-        dst_loc = dst_row, dst_col
-        dst = dst_loc, dst_port
+            assert mesh.attrib['io'] == "every-side-port"
+            assert len(mesh.findall('interior')) == 1
 
-        ties[src] = dst
+            interior = mesh.find('interior')
+                
+            mesh_builders = [ 
+                (-1,  0, mesh.attrib['out-north'][1:], mesh.attrib['in-south'][1:]),
+                ( 0,  1, mesh.attrib['out-east'][1:] , mesh.attrib['in-west'][1:] ),
+                ( 0, -1, mesh.attrib['out-west'][1:] , mesh.attrib['in-east'][1:] ),
+                ( 1,  0, mesh.attrib['out-south'][1:], mesh.attrib['in-north'][1:]),
+            ]
+
+        else:
+            assert len(arch.findall('diagonal')) == 1
+            assert int(arch.attrib['cgra-rows']) == rows - 2
+            assert int(arch.attrib['cgra-cols']) == cols - 2
+            assert len(arch.findall('mesh')) == 0
+            assert len(arch.findall('pattern')) == 0
+            mesh = arch.find('diagonal')
+
+            assert mesh.attrib['io'] == "every-side-port"
+            assert len(mesh.findall('interior')) == 1
+
+            interior = mesh.find('interior')
+
+            mesh_builders = [
+                (-1,  0, mesh.attrib['out-north'][1:]    , mesh.attrib['in-south'][1:]),
+                ( 0,  1, mesh.attrib['out-east'][1:]     , mesh.attrib['in-west'][1:] ),
+                ( 0, -1, mesh.attrib['out-west'][1:]     , mesh.attrib['in-east'][1:] ),
+                ( 1,  0, mesh.attrib['out-south'][1:]    , mesh.attrib['in-north'][1:]),
+                (-1,  1, mesh.attrib['out-northeast'][1:], mesh.attrib['in-southwest'][1:]),
+                (-1, -1, mesh.attrib['out-northwest'][1:], mesh.attrib['in-southeast'][1:]),
+                ( 1,  1, mesh.attrib['out-southeast'][1:], mesh.attrib['in-northwest'][1:]),
+                ( 1, -1, mesh.attrib['out-southwest'][1:], mesh.attrib['in-northeast'][1:]),
+            ]
+        irow = int(interior.attrib.get('row', 1))
+        icol = int(interior.attrib.get('col', 1))
+        iblocks = [blocks[x.attrib['module']] for x in interior.findall('block')]
+        
+        assert irow * icol == len(iblocks) 
+            
+        #build the blocks
+        ridx = 0
+        cidx = 0
+        for r in range(rows):
+            for c in range(cols):
+                if _is_corner(r, c):
+                    continue
+                elif _is_edge(r, c):
+                    cgra.blocks[r, c] = io_block
+                else:
+                    cgra.blocks[r, c] = iblocks[ridx * icol + cidx]
+
+                if c not in {0, cols-1}:
+                    cidx = (cidx + 1) % icol
+            if r not in {0, rows-1}:
+                ridx = (ridx + 1) % irow
+
+        for row_offset, col_offset, _src_port, _dst_port in mesh_builders:
+            for src_row in range(rows):
+                dst_row = src_row + row_offset 
+                if not _row_in_range(dst_row):
+                    continue
+                for src_col in range(cols):
+                    dst_col = src_col + col_offset
+
+                    if not _col_in_range(dst_col):
+                        continue
+
+
+                    if _is_corner(src_row, src_col) or _is_corner(dst_row, dst_col):
+                        continue
+
+                    src_is_io = _is_edge(src_row, src_col)
+                    dst_is_io = _is_edge(dst_row, dst_col)
+
+                    if src_is_io and dst_is_io:
+                        continue
+                    elif dst_is_io and (row_offset != 0 and col_offset != 0):
+                        #don't wire IOs diagonaly
+                        continue
+
+                    if src_is_io:
+                        src_port = 'out'
+                    else:
+                        src_port = _src_port
+
+                    if dst_is_io:
+                        dst_port = 'in'
+                    else:
+                        dst_port = _dst_port
+
+                    src = (src_row, src_col), src_port
+                    dst = (dst_row, dst_col), dst_port
+                    ties[src] = dst
+    else:
+        assert len(arch.findall('pattern')) > 0
+        assert len(arch.findall('mesh')) == 0
+        assert len(arch.findall('diagonal')) == 0
+        def _make_range(r):
+            l, h = r.split()
+            return range(int(l), int(h)+1)
+
+        connect_expr = re.compile(
+                #(rel row-offset col-offset).port -> row-offset, col-offset, port
+                r'\(rel\s+(-?\d+)\s+(-?\d+)\)\.([a-zA-Z]\w*)'
+            )
+
+        def _get_connect_info(s):
+            m = re.fullmatch(connect_expr, s)
+            assert m is not None, s
+            return int(m.group(1)), int(m.group(2)), m.group(3)
+
+        
+        for pattern in arch.findall('pattern'):
+            pblocks = [blocks[x.attrib['module']] for x in pattern.findall('block')] 
+
+            connect_rules = []
+            for c in pattern.findall('connection'):
+                assert 'from' in c.attrib
+                assert 'to' in c.attrib 
+                src_info = _get_connect_info(c.attrib['from'])
+                dst_info = _get_connect_info(c.attrib['to'])
+                connect_rules.append((src_info, dst_info))
+
+            row_range = _make_range(pattern.attrib['row-range'])
+            col_range = _make_range(pattern.attrib['col-range'])
+             
+            if pblocks:
+                prow = int(pattern.attrib.get('row', 1))
+                pcol = int(pattern.attrib.get('col', 1))
+                assert prow * pcol == len(pblocks)
+
+                for ridx, row in enumerate(row_range):
+                    for cidx, col in enumerate(col_range):
+                        cgra.blocks[row, col] = pblocks[(ridx % prow) * pcol + (cidx % pcol)]
+
+            for row in row_range:
+                for col in col_range:
+                    for (sro, sco, src_port), (dro, dco, dst_port) in connect_rules:
+                        src = (row+sro, col+sco), src_port
+                        dst = (row+dro, col+dco), dst_port
+                        ties[src] = dst
+
 
     _verify_pre_flatten_cgra(cgra, ties)
     
