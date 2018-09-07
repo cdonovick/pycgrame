@@ -281,7 +281,7 @@ def _verify_post_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
                 assert port is not None
 
 
-def adlparse(file_name : str) -> _CGRA:
+def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
     tree = ET.parse(file_name)
     root = tree.getroot()
     assert root.tag == 'cgra'
@@ -635,4 +635,45 @@ def adlparse(file_name : str) -> _CGRA:
 
     _verify_post_flatten_cgra(cgra, ties)
 
+    if rewrite_name is not None:
+        rewrite(rewrite_name, cgra, ties, root)
+
     return cgra
+
+def rewrite(file : str,
+        cgra : _CGRA, 
+        ties : _UNFLATTENED_TIE_MAP, 
+        old_root : ET.Element):
+    root = ET.Element('cgra')
+
+    for module in old_root.findall('module'):
+        root.append(module)
+
+    arch = ET.SubElement(root, 'architecture', {
+        'col' : f'{cgra.cols}', 
+        'row' : f'{cgra.rows}',
+        })
+
+    for loc, block in cgra.blocks.items():
+        pattern = ET.SubElement(arch, 'pattern', {
+            'row-range' : f'{loc[0]} {loc[0]}', 
+            'col-range' : f'{loc[1]} {loc[1]}',
+            })
+        ET.SubElement(pattern, 'block', {'module' : block.name})
+
+
+    for ((src_row, src_col), src_port), ((dst_row, dst_col), dst_port) in ties.items():
+        pattern = ET.SubElement(arch, 'pattern', {
+            'row-range' : f'{dst_row} {dst_row}', 
+            'col-range' : f'{dst_col} {dst_col}',
+            })
+        ET.SubElement(pattern, 'connection', {
+            'from' : f'(rel {src_row - dst_row} {src_col - dst_col}).{src_port}',
+            'to'   : f'(rel 0 0).{dst_port}',
+            })
+
+
+    et = ET.ElementTree(root)
+    et.write(file)
+    adlparse(file)
+

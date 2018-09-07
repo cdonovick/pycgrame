@@ -14,6 +14,7 @@ parser.add_argument('--seed', help='Seed the randomness in solvers', type=int, d
 parser.add_argument('--solver', help='choose the smt solver to use for placement', default='Boolector')
 parser.add_argument('--time', '-t', action='store_true', help='Print timing information.', default=False)
 parser.add_argument('--parse-only', action='store_true', default=False, dest='parse_only')
+parser.add_argument('--rewrite-fabric', default=None, dest='rewrite_name')
 
 
 args = parser.parse_args()
@@ -30,7 +31,7 @@ import constraints
 
 mods, ties = dotparse.dot2graph(design_file)
 design = Design(mods, ties)
-cgra = adlparse(fabric_file)
+cgra = adlparse(fabric_file, rewrite_name=args.rewrite_name)
 mrrg = MRRG(cgra, contexts=args.contexts)
 pnr = PNR(mrrg, design, args.solver, args.seed)
 
