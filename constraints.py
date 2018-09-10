@@ -134,7 +134,8 @@ def input_connectivity(cgra, design, map_state, map_vars, solver):
 
     c = []
     for node in cgra.routing_nodes:
-        bv = solver.BitVec(len(node.inputs.values()))
+        l = len(node.inputs.values())
+        bv = solver.BitVec(l)
         for value in design.values:
             for dst in value.dsts:
                 v = map_vars[node, value, dst]

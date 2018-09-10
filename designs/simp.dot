@@ -2,7 +2,7 @@ digraph G {
 load0[opcode=load];
 load1[opcode=load];
 add2[opcode=add];
-out3[opcode=output];
+out3[opcode=store];
 load0->add2[operand=0];
 load1->add2[operand=1];
 add2->out3[operand=0];

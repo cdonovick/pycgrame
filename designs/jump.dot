@@ -1,9 +1,9 @@
 digraph G {
-input0[opcode=input];
+input0[opcode=load];
 load1[opcode=load];
 add2[opcode=add];
 add3[opcode=add];
-output4[opcode=output];
+output4[opcode=store];
 input0->add2[operand=0];
 load1->add2[operand=1];
 add2->add3[operand=0];

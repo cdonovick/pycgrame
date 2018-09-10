@@ -3,6 +3,7 @@ import copy
 import re
 import typing as tp
 import xml.etree.ElementTree as ET
+import warnings
 from collections import defaultdict
 from functools import partial, reduce
 
@@ -55,7 +56,7 @@ class _BLOCK:
         yield from self.instances.items()
         yield from self.muxes.items()
         yield from self.ports.items()
-        
+
 
 _ADDRESS = tp.Tuple[_LOC, tp.Union[_MUX, _PORT, _INSTANCE], str] # ((row, col), instance, port)
 _UNFLATTENED_TIE_MAP = tp.MutableMapping[tp.Tuple[_LOC, str], tp.Tuple[_LOC, str]]
@@ -81,6 +82,10 @@ _INTERFACES = {
         'input_ports'  : {'in_a', 'in_b',},
         'output_ports' : {'out',},
     },
+    'ConstUnit' : {
+        'input_ports' : {},
+        'output_ports' : {'out',},
+    },
 }
 
 _OPERAND_MAP = {
@@ -88,13 +93,20 @@ _OPERAND_MAP = {
     'Register' : {'in' : 0},
     'FuncUnit' : {'in_a' : 0, 'in_b' : 1},
 }
-    
+
+_DEFAULT_OP_MAP = {
+    'IO' :  {'input', 'output',},
+    'ConstUnit' : {'const',},
+    'Register' : set(),
+}
+
+
 
 _HACK_SEP='-'
 
-def _get_src(cgra : _CGRA, 
-        ties : _UNFLATTENED_TIE_MAP, 
-        loc : _LOC, 
+def _get_src(cgra : _CGRA,
+        ties : _UNFLATTENED_TIE_MAP,
+        loc : _LOC,
         src_path : str) -> _ADDRESS:
 
     #print(loc,  src_path)
@@ -124,7 +136,10 @@ def _get_src(cgra : _CGRA,
             inst = block.muxes[src_name]
 
         if src_port in inst.input_ports:
-            srcs = block.ties.I[src_path]
+            try:
+                srcs = block.ties.I[src_path]
+            except KeyError:
+                return None
             assert len(srcs) == 1
             return _get_src(cgra, ties, loc, srcs[0])
         else:
@@ -132,9 +147,9 @@ def _get_src(cgra : _CGRA,
             return (loc, inst, src_port)
 
 
-def _get_dsts(cgra : _CGRA, 
-        ties : _UNFLATTENED_TIE_MAP, 
-        loc : _LOC, 
+def _get_dsts(cgra : _CGRA,
+        ties : _UNFLATTENED_TIE_MAP,
+        loc : _LOC,
         dst_path : str) -> tp.Set[_ADDRESS]:
 
     #print(loc,  dst_path)
@@ -216,7 +231,8 @@ def _verify_block(this_block : _BLOCK):
 
     for inst_name, inst in this_block.insts_and_muxes:
         for port in inst.input_ports:
-            assert f'{inst_name}.{port}' in this_block.ties.I
+            if not f'{inst_name}.{port}' in this_block.ties.I:
+                warnings.warn(f'disconnected instance port {inst_name}.{port} in {this_block.name}')
             assert port not in inst.output_ports
         for port in inst.output_ports:
             assert port not in inst.input_ports
@@ -237,12 +253,12 @@ def _verify_pre_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
         assert len(ties.I[loc, port]) == 1, (loc, port, ties.I[loc, port])
 
     for loc, block in cgra.blocks.items():
-        _verify_block(block)
+        # _verify_block(block)
         assert 0 <= loc[0] < cgra.rows
         assert 0 <= loc[1] < cgra.cols
-        # cant assume all ports bounds
-        #for port in block.input_ports:
-        #    assert (loc, port) in ties.I, (loc, port)
+        for port in block.input_ports:
+            if not (loc, port) in ties.I:
+                warnings.warn(f'disconnected block input: {port} @ {loc}')
 
     for loc, block in cgra.blocks.items():
         for inst_name, inst in block.insts_and_muxes:
@@ -265,7 +281,7 @@ def _verify_pre_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
                     src = _get_src(cgra, ties, dst_loc, dst_path)
                     assert address == src, f'\naddress: {address}\ndst_path: {dst_path}\nscr: {src}'
 
-            
+
 def _verify_post_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
     for loc, block in cgra.blocks.items():
         for inst_name, inst in block.insts_and_muxes:
@@ -277,7 +293,7 @@ def _verify_post_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
             for port in inst.output_ports:
                 # not strictly necessary but lets check this anyway
                 address = (loc, inst, port)
-                assert address in cgra.ties 
+                assert address in cgra.ties
                 assert port is not None
 
 
@@ -287,22 +303,22 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
     assert root.tag == 'cgra'
 
     blocks = dict()
-    
+
     for module in root.findall('module'):
-    
+
         name = module.attrib['name']
         input_ports  = [x.attrib['name'] for x in module.findall('input')]
         output_ports = [x.attrib['name'] for x in module.findall('output')]
 
         blocks[name] = this_block = _BLOCK(name, input_ports, output_ports)
-         
+
         #gather instances
         for x in module.findall('inst'):
             iname = x.attrib['name']
             # assert name is free
             assert iname != 'this'
             assert iname != this_block.name
-            assert iname not in this_block.instances 
+            assert iname not in this_block.instances
             assert iname not in this_block.ties
             assert iname not in this_block.ports
 
@@ -314,13 +330,10 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                 if v.startswith('(') and v.endswith(')'):
                     raise ValueError("Unsupported feature module param")
                 args[k] = v.split()
+            if 'op' not in args:
+                args['op'] = _DEFAULT_OP_MAP[itype]
 
             this_block.instances[iname] = inst = _INSTANCE(iname, itype, _INTERFACES[itype]['input_ports'], _INTERFACES[itype]['output_ports'], args)
-            for port in inst.input_ports:
-                pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
-                operand = _OPERAND_MAP[itype][port]  
-                this_block.ports[pname] = _PORT(pname, 'in', 'out', operand)
-
 
         wires = set()
         #build wires
@@ -334,11 +347,11 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
             assert wname not in wires
             #save them so they can be contracted later
             wires.add(wname)
-         
+
         #build muxes
-        muxes = dict() 
+        muxes = dict()
         # muxes :: name : (real_name, port_dict)
-        # port_dict :: src : port 
+        # port_dict :: src : port
         ctr = 0
         for x in module.findall('connection'):
             assert 'to' in x.attrib
@@ -377,7 +390,7 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                 src_paths = x.attrib['from'].split()
             else:
                 src_paths = x.attrib['select-from'].split()
-            
+
             for src in src_paths:
                 if src in muxes:
                     srcp = f'{muxes[src][0]}.out'
@@ -395,9 +408,12 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
 
                         if dst_inst in this_block.instances:
                             pname = f'PORT{_HACK_SEP}{dst_inst}{_HACK_SEP}{dst_port}'
-                            assert pname in this_block.ports
-                            iport = this_block.ports[pname].input_port
-                            oport = this_block.ports[pname].output_port
+                            assert pname not in this_block.ports
+                            operand = _OPERAND_MAP[this_block.instances[dst_inst].type_][dst_port]
+                            this_block.ports[pname] = port = _PORT(pname, 'in', 'out', operand)
+
+                            iport = port.input_port
+                            oport = port.output_port
                             this_block.ties[f'{pname}.{oport}'] = dst
                             dstp = f'{pname}.{iport}'
                         else:
@@ -412,7 +428,7 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                 w_dsts = this_block.ties[w]
             else:
                 assert w not in this_block.ties.I
-                continue 
+                continue
             if w in this_block.ties.I:
                 w_srcs = this_block.ties.I[w]
             else:
@@ -427,48 +443,48 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
 
         #assert stuff
         _verify_block(this_block)
-    
-    #build a block for IO
-    itype = 'IO'
-    iname = itype.lower() 
-    assert itype not in blocks
-    blocks[itype] = io_block = _BLOCK(itype, _INTERFACES[itype]['input_ports'], _INTERFACES[itype]['output_ports'])
-    io_block.instances[iname] = inst = _INSTANCE(iname, itype, io_block.input_ports, io_block.output_ports, {'op' : {'input', 'output'}})
-    for port in inst.input_ports:
-        pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
-        operand = _OPERAND_MAP[itype][port]  
-        io_block.ports[pname] = _PORT(pname, 'in', 'out', operand)
 
-    for port in io_block.input_ports:
-        pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
-        assert pname in io_block.ports, (pname, io_block.ports)
-        iport = io_block.ports[pname].input_port
-        oport = io_block.ports[pname].output_port
-        io_block.ties[f'this.{port}'] = f'{pname}.{iport}'
-        io_block.ties[f'{pname}.{oport}'] = f'{iname}.{port}'
 
-    for port in io_block.output_ports:
-        io_block.ties[f'{iname}.{port}'] = f'this.{port}'
-
-    _verify_block(io_block)
-
-    
     assert len(root.findall('architecture')) == 1
     arch = root.find('architecture')
 
     rows, cols = int(arch.attrib['row']), int(arch.attrib['col'])
     cgra = _CGRA(rows, cols)
-    
-    def _is_edge(row, col): return (row in {0, rows-1}) or (col in {0, cols-1})
-    def _is_corner(row, col): return (row in {0, rows-1}) and (col in {0, cols-1})
-    def _row_in_range(row): return 0 <= row < rows
-    def _col_in_range(col): return 0 <= col < cols
+
 
 
     #((src_row, src_col), src_port) -> ((dst_row, dst_col), dst_port)
     ties = BiMultiDict()
-    
+
     if len(arch.findall('mesh')) or len(arch.findall('diagonal')):
+        def _is_edge(row, col): return (row in {0, rows-1}) or (col in {0, cols-1})
+        def _is_corner(row, col): return (row in {0, rows-1}) and (col in {0, cols-1})
+        def _row_in_range(row): return 0 <= row < rows
+        def _col_in_range(col): return 0 <= col < cols
+        #build a block for IO
+        itype = 'IO'
+        iname = itype.lower()
+        assert itype not in blocks
+        blocks[itype] = io_block = _BLOCK(itype, _INTERFACES[itype]['input_ports'], _INTERFACES[itype]['output_ports'])
+        io_block.instances[iname] = inst = _INSTANCE(iname, itype, io_block.input_ports, io_block.output_ports, {'op' : {'input', 'output'}})
+        for port in inst.input_ports:
+            pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
+            operand = _OPERAND_MAP[itype][port]
+            io_block.ports[pname] = _PORT(pname, 'in', 'out', operand)
+
+        for port in io_block.input_ports:
+            pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
+            assert pname in io_block.ports, (pname, io_block.ports)
+            iport = io_block.ports[pname].input_port
+            oport = io_block.ports[pname].output_port
+            io_block.ties[f'this.{port}'] = f'{pname}.{iport}'
+            io_block.ties[f'{pname}.{oport}'] = f'{iname}.{port}'
+
+        for port in io_block.output_ports:
+            io_block.ties[f'{iname}.{port}'] = f'this.{port}'
+
+        _verify_block(io_block)
+
         if len(arch.findall('mesh')):
             assert len(arch.findall('mesh')) == 1
             assert int(arch.attrib['cgra-rows']) == rows - 2
@@ -481,8 +497,8 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
             assert len(mesh.findall('interior')) == 1
 
             interior = mesh.find('interior')
-                
-            mesh_builders = [ 
+
+            mesh_builders = [
                 (-1,  0, mesh.attrib['out-north'][1:], mesh.attrib['in-south'][1:]),
                 ( 0,  1, mesh.attrib['out-east'][1:] , mesh.attrib['in-west'][1:] ),
                 ( 0, -1, mesh.attrib['out-west'][1:] , mesh.attrib['in-east'][1:] ),
@@ -515,9 +531,9 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
         irow = int(interior.attrib.get('row', 1))
         icol = int(interior.attrib.get('col', 1))
         iblocks = [blocks[x.attrib['module']] for x in interior.findall('block')]
-        
-        assert irow * icol == len(iblocks) 
-            
+
+        assert irow * icol == len(iblocks)
+
         #build the blocks
         ridx = 0
         cidx = 0
@@ -537,7 +553,7 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
 
         for row_offset, col_offset, _src_port, _dst_port in mesh_builders:
             for src_row in range(rows):
-                dst_row = src_row + row_offset 
+                dst_row = src_row + row_offset
                 if not _row_in_range(dst_row):
                     continue
                 for src_col in range(cols):
@@ -590,21 +606,21 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
             assert m is not None, s
             return int(m.group(1)), int(m.group(2)), m.group(3)
 
-        
+
         for pattern in arch.findall('pattern'):
-            pblocks = [blocks[x.attrib['module']] for x in pattern.findall('block')] 
+            pblocks = [blocks[x.attrib['module']] for x in pattern.findall('block')]
 
             connect_rules = []
             for c in pattern.findall('connection'):
                 assert 'from' in c.attrib
-                assert 'to' in c.attrib 
+                assert 'to' in c.attrib
                 src_info = _get_connect_info(c.attrib['from'])
                 dst_info = _get_connect_info(c.attrib['to'])
                 connect_rules.append((src_info, dst_info))
 
             row_range = _make_range(pattern.attrib['row-range'])
             col_range = _make_range(pattern.attrib['col-range'])
-             
+
             if pblocks:
                 prow = int(pattern.attrib.get('row', 1))
                 pcol = int(pattern.attrib.get('col', 1))
@@ -623,7 +639,7 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
 
 
     _verify_pre_flatten_cgra(cgra, ties)
-    
+
     #flatten ties
     for loc, block in cgra.blocks.items():
         for inst_name, inst in block.insts_and_muxes:
@@ -641,8 +657,8 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
     return cgra
 
 def rewrite(file : str,
-        cgra : _CGRA, 
-        ties : _UNFLATTENED_TIE_MAP, 
+        cgra : _CGRA,
+        ties : _UNFLATTENED_TIE_MAP,
         old_root : ET.Element):
     root = ET.Element('cgra')
 
@@ -650,13 +666,13 @@ def rewrite(file : str,
         root.append(module)
 
     arch = ET.SubElement(root, 'architecture', {
-        'col' : f'{cgra.cols}', 
+        'col' : f'{cgra.cols}',
         'row' : f'{cgra.rows}',
         })
 
     for loc, block in cgra.blocks.items():
         pattern = ET.SubElement(arch, 'pattern', {
-            'row-range' : f'{loc[0]} {loc[0]}', 
+            'row-range' : f'{loc[0]} {loc[0]}',
             'col-range' : f'{loc[1]} {loc[1]}',
             })
         ET.SubElement(pattern, 'block', {'module' : block.name})
@@ -664,7 +680,7 @@ def rewrite(file : str,
 
     for ((src_row, src_col), src_port), ((dst_row, dst_col), dst_port) in ties.items():
         pattern = ET.SubElement(arch, 'pattern', {
-            'row-range' : f'{dst_row} {dst_row}', 
+            'row-range' : f'{dst_row} {dst_row}',
             'col-range' : f'{dst_col} {dst_col}',
             })
         ET.SubElement(pattern, 'connection', {
