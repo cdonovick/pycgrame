@@ -1,6 +1,8 @@
 <cgra>
 	<module name="fblock">
-		<input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/>
+		                    <input name="in0"/>
+		<input name="in3"/>                     <input name="in1"/>
+		                    <input name="in2"/>
 		<output name="out"/>
 		<inst name="func" module="FuncUnit" op="add sub mul div and or xor shl shr const"/>
 		<inst name="register" module="Register"/>
@@ -22,47 +24,51 @@
 	<architecture col="6" row="6">
 		<!-- NORTH IOs -->
 		<pattern row-range="0 0" col-range="1 4">
-			<block module="ioblock" />
+			<block module="ioblock"/>
 		</pattern>
 
 		<!-- EAST IOs -->
 		<pattern row-range="1 4" col-range="5 5">
-			<block module="ioblock" />
+			<block module="ioblock"/>
 		</pattern>
 
 		<!-- SOUTH IOs -->
 		<pattern row-range="5 5" col-range="1 4">
-			<block module="ioblock" />
+			<block module="ioblock"/>
 		</pattern>
 
 		<!-- WEST IOs -->
 		<pattern row-range="1 4" col-range="0 0">
-			<block module="ioblock" />
+			<block module="ioblock"/>
 		</pattern>
 
 		<!-- BLOCKS -->
 		<pattern row-range="1 4" col-range="1 4">
-			<block module="fblock" />
+			<block module="fblock"/>
 		</pattern>
 
 		<!-- Wires -->
 		<pattern row-range="0 0" col-range="1 4">
-			<connection from="(rel 1 0).out" to="(rel 0 0).in" />
+			<connection from="(rel  1  0).out" to="(rel 0 0).in"/>
 		</pattern>
+
 		<pattern row-range="5 5" col-range="1 4">
-			<connection from="(rel -1 0).out" to="(rel 0 0).in" />
+			<connection from="(rel -1  0).out" to="(rel 0 0).in"/>
 		</pattern>
+
 		<pattern row-range="1 4" col-range="0 0">
-			<connection from="(rel 0 1).out" to="(rel 0 0).in" />
+			<connection from="(rel  0  1).out" to="(rel 0 0).in"/>
 		</pattern>
+
 		<pattern row-range="1 4" col-range="5 5">
-			<connection from="(rel 0 -1).out" to="(rel 0 0).in" />
+			<connection from="(rel  0 -1).out" to="(rel 0 0).in"/>
 		</pattern>
+
 		<pattern row-range="1 4" col-range="1 4">
-			<connection from="(rel  1  0).out" to="(rel 0 0).in0" />
-			<connection from="(rel  0 -1).out" to="(rel 0 0).in1" />
-			<connection from="(rel  0  1).out" to="(rel 0 0).in2" />
-			<connection from="(rel -1  0).out" to="(rel 0 0).in3" />
+			<connection from="(rel -1  0).out" to="(rel 0 0).in0"/>
+			<connection from="(rel  0  1).out" to="(rel 0 0).in1"/>
+			<connection from="(rel  1  0).out" to="(rel 0 0).in2"/>
+			<connection from="(rel  0 -1).out" to="(rel 0 0).in3"/>
 		</pattern>
 	</architecture>
 </cgra>
