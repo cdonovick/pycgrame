@@ -25,6 +25,10 @@ class _MUX:
     name         : str            = attr.ib(cmp=True)
     input_ports  : tp.Set[str]    = attr.ib(cmp=True, converter=frozenset)
     output_ports : tp.Set[str]    = attr.ib(cmp=True, converter=frozenset)
+    @property
+    def output_port(self) -> str:
+        assert len(self.output_ports) == 1
+        for p in self.output_ports: return p
 
 @attr.s(slots=True, auto_attribs=True, frozen=True)
 class _PORT:
@@ -276,6 +280,7 @@ def _verify_pre_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
                 address = (loc, inst, port)
                 path = f'{inst_name}.{port}'
                 dsts = _get_dsts(cgra, ties, loc, path)
+
                 for dst_loc, dst_inst, dst_port in dsts:
                     dst_path = f'{dst_inst.name}.{dst_port}'
                     src = _get_src(cgra, ties, dst_loc, dst_path)
@@ -383,6 +388,7 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                 muxes[d_path] = (mname, port_dict)
                 this_block.muxes[mname] = _MUX(mname, port_dict.values(), ('out',))
 
+
         #build ties
         for x in module.findall('connection'):
             dst_paths = x.attrib['to'].split()
@@ -393,16 +399,38 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
 
             for src in src_paths:
                 if src in muxes:
-                    srcp = f'{muxes[src][0]}.out'
+                    mname = muxes[src][0]
+                    srcp = f'{mname}.{this_block.muxes[mname].output_port}'
                     assert not src.startswith('this.')
                 else:
                     srcp = src
                 for dst in dst_paths:
                     if dst in muxes:
-                        dst_name = f'{muxes[dst][0]}'
-                        dstp = f'{dst_name}.{muxes[dst][1][src]}'
-                        if dst.startswith('this.'):
-                            this_block.ties[f'{dst_name}.out'] = dst
+
+                        mname, mdict = muxes[dst]
+                        dstp = f'{mname}.{mdict[src]}'
+                        dst_args = dst.split('.')
+                        if len(dst_args) > 1:
+                            dst_inst, dst_port = dst_args
+                            if dst_inst == 'this':
+                                this_block.ties[f'{mname}.{this_block.muxes[mname].output_port}'] = dst
+                            elif dst_inst in this_block.instances:
+                                pname = f'PORT{_HACK_SEP}{dst_inst}{_HACK_SEP}{dst_port}'
+                                if pname not in this_block.ports:
+                                    operand = _OPERAND_MAP[this_block.instances[dst_inst].type_][dst_port]
+                                    this_block.ports[pname] = port = _PORT(pname, 'in', 'out', operand)
+                                    iport = port.input_port
+                                    oport = port.output_port
+                                    this_block.ties[f'{pname}.{oport}'] = dst
+                                    this_block.ties[f'{mname}.{this_block.muxes[mname].output_port}'] = f'{pname}.{iport}'
+                                else:
+                                    port = this_block.ports[pname]
+                                    assert port.operand == _OPERAND_MAP[this_block.instances[dst_inst].type_][dst_port]
+                                    assert f'{pname}.out' in this_block.ties
+                                    assert dst in this_block.ties[f'{pname}.out']
+                            else:
+                                assert 0
+
                     else:
                         dst_inst, dst_port = dst.split('.')
 
@@ -418,7 +446,6 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                             dstp = f'{pname}.{iport}'
                         else:
                             dstp = dst
-
 
                     this_block.ties[srcp] = dstp
 

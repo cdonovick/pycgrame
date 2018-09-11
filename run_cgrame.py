@@ -54,21 +54,24 @@ funcs = (
         constraints.routing_resource_usage,
     )
 constraint_start = time.perf_counter()
-pnr.map_design(*funcs, verbose=verbose)
+#pnr.map_design(*funcs, verbose=verbose)
 constraint_end = time.perf_counter()
 if args.time and verbose:
     print(f'Constraint building took {constraint_end - constraint_start} seconds', flush=True)
 
 solver_start = time.perf_counter()
-sat = pnr.solve(verbose=verbose)
+sat = pnr.optimize_design(constraints.optimizer(constraints.count_route, constraints.limit_route), *funcs, verbose=verbose)
+#sat = pnr.solve(verbose=verbose)
 solver_end = time.perf_counter()
 
 if args.time and verbose:
     print(f'Solving took {solver_end - solver_start} seconds', flush=True)
 
 if sat:
-    pnr.attest_design(constraints.model_checker)
+    pnr.attest_design(constraints.model_checker, verbose=verbose)
     print('SAT')
+    if verbose:
+        pnr.model_info(constraints.model_info)
 else:
     print('UNSAT')
 

@@ -7,11 +7,8 @@ class PNR:
     def __init__(self, cgra, design, solver_str, seed=1):
         self._cgra = cgra
         self._design = design
-
-        self._map_state =dict()
-        self._map_vars = dict()
+        self._map_vars  = dict()
         
-
         self._solver = smt(solver_str)
         self._solver_opts = solver_opts = [('random-seed', seed)]
         if solver_str == 'CVC4':
@@ -33,6 +30,11 @@ class PNR:
         for op, n in op_hist.items():
             assert pe_hist[op] >= n, (op, pe_hist)
 
+    def _reset(self):
+        self._map_vars  = dict()
+        self._solver.Reset()
+        self._init_solver()
+
     def _init_solver(self):
         solver = self._solver
 
@@ -49,7 +51,7 @@ class PNR:
 
     def map_design(self, *funcs, verbose=False):
         solver = self._solver
-        args = self.cgra, self.design, self._map_state, self._map_vars, solver
+        args = self.cgra, self.design, self._map_vars, solver
 
         constraints = []
         if verbose:
@@ -61,6 +63,21 @@ class PNR:
         else:
             for f in funcs:
                 solver.Assert(f(*args))
+
+    def optimize_design(self, optimizer, *funcs,  verbose=True):
+        self.map_design(*funcs, verbose=verbose)
+        if self.solve(verbose=verbose):
+            solver = self._solver
+            args = self.cgra, self.design, self._map_vars, solver
+            f = optimizer(*args, True)
+            while f is not None:
+                self._reset()
+                self.map_design(*funcs, f, verbose=verbose)
+                sat = solver.CheckSat()
+                f = optimizer(*args, sat)
+            return True
+        else:
+            return False
 
     def solve(self, *, verbose=False):
         solver = self._solver
@@ -75,8 +92,7 @@ class PNR:
         return True
 
     def attest_design(self, *funcs, verbose=False):
-        solver = self._solver
-        args = self.cgra, self.design, self._map_state, self._map_vars, solver
+        args = self.cgra, self.design, self._map_vars, self._solver
 
         if verbose:
             for f in funcs:
@@ -87,7 +103,11 @@ class PNR:
             for f in funcs:
                 f(*args)
 
+    def model_info(self, *funcs):
+        args = self.cgra, self.design, self._map_vars, self._solver
 
+        for f in funcs:
+            f(*args)
 
     def write_design(self, model_writer):
         model_writer(self._place_state, self._route_state)

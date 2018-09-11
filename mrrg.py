@@ -194,6 +194,7 @@ class MRRG:
         self._route = route
         self._all = all
         self._fu = fu
+        self._mux = mux
 
     @property
     def functional_units(self):
@@ -207,3 +208,6 @@ class MRRG:
     def all_nodes(self):
         return self._all.values()
 
+    @property
+    def muxes(self):
+        return self._mux.values()
