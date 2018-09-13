@@ -3,7 +3,7 @@
 
 import sys
 import argparse
-import time 
+import time
 
 parser = argparse.ArgumentParser(description='Run place and route')
 parser.add_argument('design', metavar='<DESIGN_FILE>', help='Mapped coreir file')
@@ -15,6 +15,7 @@ parser.add_argument('--solver', help='choose the smt solver to use for placement
 parser.add_argument('--time', '-t', action='store_true', help='Print timing information.', default=False)
 parser.add_argument('--parse-only', action='store_true', default=False, dest='parse_only')
 parser.add_argument('--rewrite-fabric', default=None, dest='rewrite_name')
+parser.add_argument('--optimize', '-o', action='store_true', default=False)
 
 
 args = parser.parse_args()
@@ -28,6 +29,8 @@ from adlparse import adlparse
 from mrrg import MRRG
 from pnr import PNR
 import constraints
+import optimization
+import modeler
 
 mods, ties = dotparse.dot2graph(design_file)
 design = Design(mods, ties)
@@ -53,29 +56,46 @@ funcs = (
         constraints.output_connectivity,
         constraints.routing_resource_usage,
     )
-constraint_start = time.perf_counter()
-#pnr.map_design(*funcs, verbose=verbose)
-constraint_end = time.perf_counter()
-if args.time and verbose:
-    print(f'Constraint building took {constraint_end - constraint_start} seconds', flush=True)
+if args.optimize:
+    opt_start = time.perf_counter()
+    sat = pnr.optimize_design(
+            optimization.count_muxes,
+            optimization.limit_muxes,
+            *funcs,
+            verbose=verbose,
+            attest_func=modeler.model_checker,)
+    opt_end = time.perf_counter()
+    if sat:
+        pnr.attest_design(modeler.model_checker, verbose=verbose)
+        print('SAT')
+    else:
+        print('UNSAT')
 
-solver_start = time.perf_counter()
-sat = pnr.optimize_design(constraints.optimizer(constraints.count_route, constraints.limit_route), *funcs, verbose=verbose)
-#sat = pnr.solve(verbose=verbose)
-solver_end = time.perf_counter()
-
-if args.time and verbose:
-    print(f'Solving took {solver_end - solver_start} seconds', flush=True)
-
-if sat:
-    pnr.attest_design(constraints.model_checker, verbose=verbose)
-    print('SAT')
-    if verbose:
-        pnr.model_info(constraints.model_info)
+    if args.time or verbose:
+        print(f'Optimization took {opt_end - opt_start} seconds', flush=True)
 else:
-    print('UNSAT')
+    constraint_start = time.perf_counter()
+    pnr.map_design(*funcs, verbose=verbose)
+    constraint_end = time.perf_counter()
+    if args.time and verbose:
+        print(f'Constraint building took {constraint_end - constraint_start} seconds', flush=True)
 
-if args.time and not verbose:
-    print(f'Constraint building took {constraint_end - constraint_start} seconds')
-    print(f'Solving took {solver_end - solver_start} seconds')
+    solver_start = time.perf_counter()
+    sat = pnr.solve(verbose=verbose)
+    solver_end = time.perf_counter()
+
+    if args.time and verbose:
+        print(f'Solving took {solver_end - solver_start} seconds', flush=True)
+
+    if sat:
+        pnr.attest_design(modeler.model_checker, verbose=verbose)
+        print('SAT')
+        if verbose:
+            pnr.attest_design(modeler.model_info, verbose=verbose)
+    else:
+        print('UNSAT')
+
+    if args.time and not verbose:
+        print(f'Constraint building took {constraint_end - constraint_start} seconds')
+        print(f'Solving took {solver_end - solver_start} seconds')
 

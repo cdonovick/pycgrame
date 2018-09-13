@@ -1,24 +1,45 @@
 import itertools as it
+import functools as ft
+import typing as tp
 from collections import Counter
 from smt_switch import smt
-
+from modeler import Modeler
+from design import Design
+from mrrg import MRRG
+import smt_switch_types
+from constraints import ConstraintGeneratorType
+from optimization import EvalType, OptGeneratorType
+from modeler import Model, ModelReader
 
 class PNR:
-    def __init__(self, cgra, design, solver_str, seed=1):
+    _cgra : MRRG
+    _design : Design
+    _vars : Modeler
+    _solver : smt_switch_types.Solver
+    _model : tp.Optional[Model]
+    _solver_opts : tp.List[tp.Tuple[str, str]]
+
+    def __init__(self,
+            cgra : MRRG,
+            design : Design,
+            solver_str : str,
+            seed : int = 0):
+
         self._cgra = cgra
-        self._design = design
-        self._map_vars  = dict()
-        
-        self._solver = smt(solver_str)
+        self._design  = design
+
+        self._solver = solver = smt(solver_str)
         self._solver_opts = solver_opts = [('random-seed', seed)]
         if solver_str == 'CVC4':
             solver_opts.append(('bitblast', 'eager'))
             solver_opts.append(('bv-sat-solver', 'cryptominisat'))
 
         self._init_solver()
+        self._vars  = Modeler(solver)
         self._attest()
+        self._model = None
 
-    def _attest(self):
+    def _attest(self) -> None:
         op_hist = Counter()
         pe_hist = Counter()
         for op in self.design.operations:
@@ -30,12 +51,13 @@ class PNR:
         for op, n in op_hist.items():
             assert pe_hist[op] >= n, (op, pe_hist)
 
-    def _reset(self):
-        self._map_vars  = dict()
+    def _reset(self) -> None:
+        self._vars.reset()
         self._solver.Reset()
         self._init_solver()
+        self._model = None
 
-    def _init_solver(self):
+    def _init_solver(self) -> None:
         solver = self._solver
 
         solver.SetOption('produce-models', 'true')
@@ -49,11 +71,10 @@ class PNR:
     def pin_tie(self, tie, placement):
         raise NotImplementedError()
 
-    def map_design(self, *funcs, verbose=False):
+    def map_design(self, *funcs : ConstraintGeneratorType, verbose : bool = False) -> None:
         solver = self._solver
-        args = self.cgra, self.design, self._map_vars, solver
+        args = self.cgra, self.design, self._vars, solver
 
-        constraints = []
         if verbose:
             for f in funcs:
                 print(f.__qualname__, end='... ', flush=True)
@@ -64,22 +85,67 @@ class PNR:
             for f in funcs:
                 solver.Assert(f(*args))
 
-    def optimize_design(self, optimizer, *funcs,  verbose=True):
-        self.map_design(*funcs, verbose=verbose)
-        if self.solve(verbose=verbose):
-            solver = self._solver
-            args = self.cgra, self.design, self._map_vars, solver
-            f = optimizer(*args, True)
-            while f is not None:
+    def optimize_design(self,
+            eval_func : EvalType,
+            constraint_func : OptGeneratorType,
+            *funcs : ConstraintGeneratorType,
+            verbose : bool = True,
+            attest_func : tp.Optional[ModelReader] = None) -> bool:
+        solver = self._solver
+        vars = self._vars
+        cgra = self.cgra
+        design = self.design
+        args = cgra, design, vars, solver
+
+        if attest_func is None:
+            attest_func : ModelReader = lambda *args : True
+
+        if not verbose:
+            lprint = lambda *args, **kwargs :  None
+        else:
+            lprint = ft.partial(print, sep='', flush=True)
+
+        def apply(*funcs : ConstraintGeneratorType):
+            lprint('Building constraints:')
+            for f in funcs:
+                lprint('  ', f.__qualname__, end='... ')
+                c = f(*args)
+                solver.Assert(c)
+                lprint('done')
+            lprint('---\n')
+
+        apply(*funcs)
+        if solver.CheckSat():
+            lower = 0
+            best = vars.save_model()
+            upper = eval_func(cgra, design, best)
+            next = int((upper+lower)/2)
+            attest_func(cgra, design, best)
+
+            while lower < upper:
+                assert lower <= next <= upper
+                lprint(f'bounds: [{lower}, {upper}])')
+                lprint(f'next: {next}\n')
                 self._reset()
-                self.map_design(*funcs, f, verbose=verbose)
-                sat = solver.CheckSat()
-                f = optimizer(*args, sat)
+
+                f = constraint_func(next)
+                apply(*funcs, f)
+                if solver.CheckSat():
+                    best = vars.save_model()
+                    upper = eval_func(cgra, design, best)
+                    attest_func(cgra, design, best)
+                else:
+                    lower = next+1
+                next = int((upper+lower)/2)
+
+            self._model = best
+            assert lower == upper
+            lprint(f'optimal found: {upper}')
             return True
         else:
             return False
 
-    def solve(self, *, verbose=False):
+    def solve(self, *, verbose : bool = False):
         solver = self._solver
         if verbose:
             print('Solving ...', flush=True)
@@ -89,34 +155,28 @@ class PNR:
             self._init_solver()
             return False
 
+        self._model = self._vars.save_model()
         return True
 
-    def attest_design(self, *funcs, verbose=False):
-        args = self.cgra, self.design, self._map_vars, self._solver
+    def attest_design(self, *funcs : ModelReader, verbose : bool = False):
+        model = self._model
+        assert model is not None
+        args = self.cgra, self.design, model
 
         if verbose:
             for f in funcs:
-                print(f.__qualname__, end='... ', flush=True)
+                print(f.__qualname__, flush=True)
                 f(*args)
-                print('done', flush=True)
         else:
             for f in funcs:
                 f(*args)
 
-    def model_info(self, *funcs):
-        args = self.cgra, self.design, self._map_vars, self._solver
-
-        for f in funcs:
-            f(*args)
-
-    def write_design(self, model_writer):
-        model_writer(self._place_state, self._route_state)
 
     @property
-    def cgra(self):
+    def cgra(self) -> MRRG:
         return self._cgra
 
     @property
-    def design(self):
+    def design(self) -> Design:
         return self._design
 

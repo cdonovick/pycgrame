@@ -174,40 +174,19 @@ class MRRG:
 
                 wire(src, src_port, dst, dst_port)
 
-        # -- HACK -- wish I could put these in parse but because contexts is a
-        # command line arg have to do it here
-        #if contexts == 1:
-        #    for idx, r in reg.items():
-        #        del all[idx]
-        #        del route[idx]
-        #        src = r.input
-        #        src_port = src._outputs._d.I[r][0]
-        #        unwire(src, src_port, r, r.input_port)
-        #        dsts = set(r.outputs.values())
-        #        for dst in dsts:
-        #            dst_port = dst._inputs._d.I[r][0]
-        #            unwire(r, r.output_port, dst, dst_port)
-        #            wire(src, src_port, dst, dst_port)
-
-        #Remove muxes with degree 1 and
-
         self._route = route
         self._all = all
         self._fu = fu
-        self._mux = mux
 
     @property
-    def functional_units(self):
+    def functional_units(self) -> tp.ValuesView[FunctionalUnit]:
         return self._fu.values()
 
     @property
-    def routing_nodes(self):
+    def routing_nodes(self) -> tp.ValuesView[tp.Union[Mux, Register, FU_Port]]:
         return self._route.values()
 
     @property
-    def all_nodes(self):
+    def all_nodes(self) -> tp.ValuesView[Node]:
         return self._all.values()
 
-    @property
-    def muxes(self):
-        return self._mux.values()
