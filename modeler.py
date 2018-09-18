@@ -17,9 +17,10 @@ class Modeler(Mapping):
         self._solver = solver
         self._vars = dict()
 
-    def init_var(self, key, sort : Sort):
+    def init_var(self, key, sort : Sort) -> Term:
         assert key not in self._vars
-        self._vars[key] = self.anonymous_var(sort)
+        self._vars[key] = t = self.anonymous_var(sort)
+        return t
 
     def __getitem__(self, key) -> Term:
         return self._vars.__getitem__(key)

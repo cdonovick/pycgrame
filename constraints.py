@@ -13,10 +13,7 @@ def init_placement_vars(cgra : MRRG, design : Design, vars : Modeler, solver : S
     for pe in cgra.functional_units:
         for op in design.operations:
             vars.init_var((pe, op), bv1)
-    if solver.solver_name == 'Z3':
-        return True
-    else:
-        return solver.TheoryConst(solver.Bool(), True)
+    return solver.TheoryConst(solver.Bool(), True)
 
 def init_routing_vars(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
     bv1 = solver.BitVec(1)
@@ -25,10 +22,7 @@ def init_routing_vars(cgra : MRRG, design : Design, vars : Modeler, solver : Sol
             vars.init_var((node, value), bv1)
             for dst in value.dsts:
                 vars.init_var((node, value, dst), bv1)
-    if solver.solver_name == 'Z3':
-        return True
-    else:
-        return solver.TheoryConst(solver.Bool(), True)
+    return solver.TheoryConst(solver.Bool(), True)
 
 def _is_one_hot(var : Term, solver : Solver) -> Term:
     c = []

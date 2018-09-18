@@ -16,6 +16,7 @@ parser.add_argument('--time', '-t', action='store_true', help='Print timing info
 parser.add_argument('--parse-only', action='store_true', default=False, dest='parse_only')
 parser.add_argument('--rewrite-fabric', default=None, dest='rewrite_name')
 parser.add_argument('--optimize', '-o', action='store_true', default=False)
+parser.add_argument('--incremental', '-i', action='store_true', default=False)
 
 
 args = parser.parse_args()
@@ -36,16 +37,19 @@ mods, ties = dotparse.dot2graph(design_file)
 design = Design(mods, ties)
 cgra = adlparse(fabric_file, rewrite_name=args.rewrite_name)
 mrrg = MRRG(cgra, contexts=args.contexts)
-pnr = PNR(mrrg, design, args.solver, args.seed)
+pnr = PNR(mrrg, design, args.solver, args.seed, args.incremental)
 
 if args.parse_only:
     print('success')
     sys.exit(0)
 verbose = args.verbose
 
-funcs = (
+init  = (
         constraints.init_placement_vars,
         constraints.init_routing_vars,
+    )
+
+funcs = (
         constraints.op_placement,
         constraints.pe_exclusivity,
         constraints.pe_legality,
@@ -56,12 +60,16 @@ funcs = (
         constraints.output_connectivity,
         constraints.routing_resource_usage,
     )
+
+filter_func = optimization.mux_filter
 if args.optimize:
     opt_start = time.perf_counter()
     sat = pnr.optimize_design(
-            optimization.count_muxes,
-            optimization.limit_muxes,
-            *funcs,
+            optimization.init_popcount(filter_func),
+            optimization.count(filter_func),
+            optimization.limit_popcount,
+            init,
+            funcs,
             verbose=verbose,
             attest_func=modeler.model_checker,)
     opt_end = time.perf_counter()
@@ -75,7 +83,7 @@ if args.optimize:
         print(f'Optimization took {opt_end - opt_start} seconds', flush=True)
 else:
     constraint_start = time.perf_counter()
-    pnr.map_design(*funcs, verbose=verbose)
+    pnr.map_design(init, funcs, verbose=verbose)
     constraint_end = time.perf_counter()
     if args.time and verbose:
         print(f'Constraint building took {constraint_end - constraint_start} seconds', flush=True)
