@@ -14,6 +14,7 @@ from util import Timer, NullTimer
 
 ConstraintGeneratorList = tp.Sequence[ConstraintGeneratorType]
 
+
 class PNR:
     _cgra : MRRG
     _design : Design
@@ -179,15 +180,14 @@ class PNR:
 
         if incremental:
             sat_cb = solver.Push
-            _unsat_cb_on = solver.Pop
-            _unsat_cb_off = lambda : None
-            unsat_cb = _unsat_cb_on
+            def unsat_cb():
+                solver.Pop()
+                solver.Push()
         else:
             sat_cb = self._reset
-            unsat_cb = _unsat_cb_on = _unsat_cb_off = self._reset
+            unsat_cb = self._reset
 
         def apply(*funcs : ConstraintGeneratorType) -> tp.List[smt_switch_types.Term]:
-            x = []
             log('Building constraints:')
             build_timer.start()
             for f in funcs:
@@ -231,11 +231,9 @@ class PNR:
                     upper = eval_func(cgra, design, best)
                     attest_func(cgra, design, best)
                     sat_cb()
-                    unsat_cb = _unsat_cb_on
                 else:
                     lower = next+1
                     unsat_cb()
-                    unsat_cb = _unsat_cb_off
                 next = int((upper+lower)/2)
 
             self._model = best
