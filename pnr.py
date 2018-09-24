@@ -60,7 +60,7 @@ class PNR:
             for op in pe.ops:
                 pe_hist[op] += 1
         for op, n in op_hist.items():
-            if pe_hist[op] >= n, (op, pe_hist):
+            if pe_hist[op] < n:
                 return False
         else:
             return True

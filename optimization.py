@@ -10,6 +10,7 @@ from modeler import Modeler, Model, _get_path
 from constraints import ConstraintGeneratorType
 from smt_switch_types import Solver, Term, Sort
 from util import BiDict, BiMultiDict
+from util import AutoPartial
 
 EvalType = tp.Callable[[MRRG, Design, Model], int]
 OptGeneratorType = tp.Callable[[int, int], ConstraintGeneratorType]
@@ -36,21 +37,8 @@ class Optimizer:
         self.limit_func = limit_wrapper(node_filter)
 
 
-__kwarg_format = '{}={}'
-def AutoPartial(f : tp.Callable):
-    @ft.wraps(f)
-    def wrapper(*args, **kwargs):
-        p = ft.partial(f, *args, **kwargs)
-        arg_str = ", ".join(map(repr,args))
-        kwarg_str = ", ".join(it.starmap(__kwarg_format.format, kwargs.items()))
-        suffix = '(' + ", ".join(filter(bool, [arg_str, kwarg_str])) + ')'
-        p.__name__ = f.__name__ + suffix
-        p.__qualname__ = f.__qualname__ + suffix
-        return p
-    return wrapper
 
-
-@AutoPartial
+@AutoPartial(1)
 def init_popcount_ite(
         node_filter : NodeFilter,
         cgra : MRRG,
@@ -74,7 +62,7 @@ def init_popcount_ite(
     pop_count = vars.init_var(node_filter, bv)
     return expr == pop_count
 
-@AutoPartial
+@AutoPartial(1)
 def init_popcount_concat(
         node_filter : NodeFilter,
         cgra : MRRG,
@@ -97,7 +85,7 @@ def init_popcount_concat(
     pop_count = vars.init_var(node_filter, expr.sort)
     return expr == pop_count
 
-@AutoPartial
+@AutoPartial(1)
 def init_popcount_bithack(
         node_filter : NodeFilter,
         cgra : MRRG,
@@ -164,7 +152,7 @@ def init_popcount_bithack(
 
 # HACK OH GOD THE HACKINESS
 __pop_count = None
-@AutoPartial
+@AutoPartial(1)
 def init_popcount_shannon(
         node_filter : NodeFilter,
         cgra : MRRG,
@@ -197,7 +185,7 @@ def init_popcount_shannon(
     return True
 
 
-@AutoPartial
+@AutoPartial(1)
 def count(
         node_filter : NodeFilter,
         cgra : MRRG,
@@ -210,7 +198,7 @@ def count(
             if node_filter(node))
     return s
 
-@AutoPartial
+@AutoPartial(1)
 def smart_count(
         node_filter : NodeFilter,
         cgra : MRRG,
@@ -237,8 +225,8 @@ def smart_count(
     return len(used)
 
 
-@AutoPartial #node_filter
-@AutoPartial #l, n
+@AutoPartial(1) #node_filter
+@AutoPartial(3) #l, n
 def limit_popcount_total(
         node_filter : NodeFilter,
         l : int,
@@ -257,7 +245,8 @@ def limit_popcount_total(
         return solver.And(solver.BVUle(l, v), solver.BVUle(v, n))
 
 
-@AutoPartial
+@AutoPartial(1)
+@AutoPartial(3)
 def limit_popcount_shannon(
         node_filter : NodeFilter,
         l : int,
