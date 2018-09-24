@@ -46,14 +46,11 @@ class PNR:
                 solver_opts.append(('bv-sat-solver', 'cadical'))
                 #solver_opts.append(('bitblast', 'eager'))
 
-
-
         self._init_solver()
         self._vars  = Modeler(solver)
-        self._attest()
         self._model = None
 
-    def _attest(self) -> None:
+    def _check_pigeons(self) -> bool:
         op_hist = Counter()
         pe_hist = Counter()
         for op in self.design.operations:
@@ -63,7 +60,10 @@ class PNR:
             for op in pe.ops:
                 pe_hist[op] += 1
         for op, n in op_hist.items():
-            assert pe_hist[op] >= n, (op, pe_hist)
+            if pe_hist[op] >= n, (op, pe_hist):
+                return False
+        else:
+            return True
 
     def _reset(self) -> None:
         self._vars.reset()
@@ -130,6 +130,19 @@ class PNR:
             cutoff : tp.Optional[float] = None,
             return_bounds : bool = False,
             ) -> bool:
+
+        if not verbose:
+            log = lambda *args, **kwargs :  None
+        else:
+            log = ft.partial(print, sep='', flush=True)
+
+        if not self._check_pigeons():
+            log('Infeasible: too many pigeons')
+            if return_bounds:
+                return (False, None, None)
+            else:
+                return False
+
         solver = self._solver
         vars = self._vars
         cgra = self.cgra
@@ -153,10 +166,6 @@ class PNR:
         if solve_timer is None:
             solve_timer = NullTimer()
 
-        if not verbose:
-            log = lambda *args, **kwargs :  None
-        else:
-            log = ft.partial(print, sep='', flush=True)
 
 
         if cutoff is None or cutoff == 0:
@@ -242,6 +251,10 @@ class PNR:
                 return False
 
     def solve(self, *, verbose : bool = False):
+        if not self._check_pigeons():
+            if verbose:
+                print('Infeasible: too many pigeons', flush=True)
+            return False
         solver = self._solver
         if verbose:
             print('Solving ...', flush=True)
