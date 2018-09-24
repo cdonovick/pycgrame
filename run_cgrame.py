@@ -66,8 +66,8 @@ if args.optimize:
     #filter_func = optimization.mux_filter
     filter_func = optimization.mux_reg_filter
     opt_start = time.perf_counter()
-    optimizer = optimization.Optimizer(filter_func, 
-            optimization.init_popcount_bithack, 
+    optimizer = optimization.Optimizer(filter_func,
+            optimization.init_popcount_bithack,
             optimization.smart_count,
             optimization.limit_popcount_total)
     sat = pnr.optimize_design(

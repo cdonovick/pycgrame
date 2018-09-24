@@ -23,14 +23,14 @@ def dot2graph(file_name : str) -> (dict, set):
     for edge in edges:
         src_name = edge.get_source()
         assert src_name in modules
-        
+
         dst_name = edge.get_destination()
         assert dst_name in modules
-                
+
         attrs = edge.get_attributes()
         assert len(attrs) == 1
         assert 'operand' in attrs
-        
+
         dst_port = int(attrs['operand'])
         values.add((src_name, dst_name, dst_port))
 

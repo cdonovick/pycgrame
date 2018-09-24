@@ -24,11 +24,11 @@ class Optimizer:
     eval_func  : EvalType
     limit_func : OptGeneratorType
 
-    def __init__(self, 
-            node_filter   : NodeFilter, 
+    def __init__(self,
+            node_filter   : NodeFilter,
             init_wrapper  : WrappedType[ConstraintGeneratorType],
             eval_wrapper  : WrappedType[EvalType],
-            limit_wrapper : WrappedType[OptGeneratorType], 
+            limit_wrapper : WrappedType[OptGeneratorType],
             ):
 
         self.init_func  = init_wrapper(node_filter)
@@ -48,8 +48,8 @@ def AutoPartial(f : tp.Callable):
         p.__qualname__ = f.__qualname__ + suffix
         return p
     return wrapper
-        
-        
+
+
 @AutoPartial
 def init_popcount_ite(
         node_filter : NodeFilter,
@@ -154,7 +154,7 @@ def init_popcount_bithack(
         x += lshr(x, i[0])
         if i[0] <= b_point:
             x &= i[1]
-    
+
     x &= (2**b_point - 1)
 
     pop_count = vars.init_var(node_filter, bv.sort)
@@ -216,7 +216,7 @@ def smart_count(
         cgra : MRRG,
         design : Design,
         vars : Model) -> int:
-    
+
     F_map = BiDict()
 
     for pe in cgra.functional_units:

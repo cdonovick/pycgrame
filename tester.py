@@ -26,7 +26,7 @@ FABRICS = [
 
 DESIGNS = [
     './designs/linalg/vm2x2.dot',
-    './designs/linalg/vcm2x2.dot', 
+    './designs/linalg/vcm2x2.dot',
     './designs/linalg/vm3x3.dot',
     './designs/linalg/vcm3x3.dot',
     './designs/linalg/mm2x2.dot',
@@ -41,13 +41,13 @@ CONTEXTS = [1]
 
 OPTIMIZERS = {
 
-    'BIT_HACK_MUX' : optimization.Optimizer(optimization.mux_filter, 
-                        optimization.init_popcount_bithack, 
+    'BIT_HACK_MUX' : optimization.Optimizer(optimization.mux_filter,
+                        optimization.init_popcount_bithack,
                         optimization.smart_count,
                         optimization.limit_popcount_total),
 
-    'BIT_HACK_M/R' : optimization.Optimizer(optimization.mux_reg_filter, 
-                        optimization.init_popcount_bithack, 
+    'BIT_HACK_M/R' : optimization.Optimizer(optimization.mux_reg_filter,
+                        optimization.init_popcount_bithack,
                         optimization.smart_count,
                         optimization.limit_popcount_total),
 }
@@ -86,7 +86,7 @@ funcs = (
 with open(RESULTS_FILE, 'a') as outfile:
     date = datetime.datetime.now().isoformat(timespec='seconds')
     outfile.write('\n\nrun_date, design, fabric, contexts, solver, incremental, cutoff, optimizer, total_time, total_build_time, total_solve_time, iterations, result, lower_bound, upper_bound;\n')
-    for design_file in DESIGNS: 
+    for design_file in DESIGNS:
         for fabric_file in FABRICS:
             for contexts in CONTEXTS:
                 for solver_str in SOLVERS:
