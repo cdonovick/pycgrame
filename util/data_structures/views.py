@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence, Set
 class MapView(Mapping):
     __slot__ = '_ref', '__weakref__'
 
-    def __init__(self, map):
+    def __init__(self, map : Mapping):
         if not isinstance(map, Mapping):
             raise ValueError()
         self._ref = weakref.ref(map)
@@ -84,15 +84,16 @@ class MapView(Mapping):
 
 
 class SequenceView(Sequence):
-    __slot__ = '_ref', '__weakref__'
+    __slot__ = '_ref', #'__weakref__'
 
-    def __init__(self, seq):
+    def __init__(self, seq : Sequence):
+        self._ref = seq
         if not isinstance(seq, Sequence):
             raise ValueError()
-        self._ref = weakref.ref(seq)
+        #self._ref = weakref.ref(seq)
 
     def __getitem__(self, idx):
-        seq = self._ref()
+        seq = self._ref
         try:
             return seq.__getitem__(idx)
         except AttributeError as e:
@@ -102,7 +103,7 @@ class SequenceView(Sequence):
                 raise e
 
     def __len__(self):
-        seq = self._ref()
+        seq = self._ref
         try:
             return seq.__len__()
         except AttributeError as e:
@@ -112,7 +113,7 @@ class SequenceView(Sequence):
                 raise e
 
     def __repr__(self):
-        seq = self._ref()
+        seq = self._ref
         try:
             return f'{self.__class__.__name__}({seq.__repr__()})'
         except AttributeError as e:
@@ -124,7 +125,7 @@ class SequenceView(Sequence):
 class SetView(Set):
     __slot__ = '_ref', '__weakref__'
 
-    def __init__(self, set_):
+    def __init__(self, set_ : Set):
         if not isinstance(set_, Set):
             raise ValueError()
         self._ref = weakref.ref(set_)

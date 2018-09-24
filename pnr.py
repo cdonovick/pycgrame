@@ -8,8 +8,9 @@ from design import Design
 from mrrg import MRRG
 import smt_switch_types
 from constraints import ConstraintGeneratorType
-from optimization import EvalType, OptGeneratorType
 from modeler import Model, ModelReader
+import optimization
+from util import Timer, NullTimer
 
 ConstraintGeneratorList = tp.Sequence[ConstraintGeneratorType]
 
@@ -45,6 +46,8 @@ class PNR:
                 solver_opts.append(('bv-sat-solver', 'cadical'))
                 #solver_opts.append(('bitblast', 'eager'))
 
+
+
         self._init_solver()
         self._vars  = Modeler(solver)
         self._attest()
@@ -75,6 +78,12 @@ class PNR:
         for opts in self._solver_opts:
             solver.SetOption(*opts)
 
+        if self._solver.solver_name == 'Boolector':
+            if self._incremental:
+                self._solver._solver._btor.Set_sat_solver("Lingeling")
+            else:
+                self._solver._solver._btor.Set_sat_solver("CaDiCaL")
+
     def pin_module(self, module, placement):
         raise NotImplementedError()
 
@@ -98,45 +107,92 @@ class PNR:
             for f in it.chain(init_funcs, funcs):
                 solver.Assert(f(*args))
 
-    def optimize_design(self,
-            init_func : ConstraintGeneratorType,
-            eval_func : EvalType,
-            constraint_func : OptGeneratorType,
+    def satisfy_design(self,
             init_funcs : ConstraintGeneratorList,
             funcs : ConstraintGeneratorList,
             verbose : bool = False,
-            attest_func : tp.Optional[ModelReader] = None) -> bool:
+            attest_func : tp.Optional[ModelReader] = None,
+            first_cut : tp.Optional[tp.Callable[[int, int], int]] = None,
+            build_timer : tp.Optional[Timer] = None,
+            solve_timer : tp.Optional[Timer] = None,
+            ) -> bool:
+        pass
+
+    def optimize_design(self,
+            optimizer : optimization.Optimizer,
+            init_funcs : ConstraintGeneratorList,
+            funcs : ConstraintGeneratorList,
+            verbose : bool = False,
+            attest_func : tp.Optional[ModelReader] = None,
+            first_cut : tp.Optional[tp.Callable[[int, int], int]] = None,
+            build_timer : tp.Optional[Timer] = None,
+            solve_timer : tp.Optional[Timer] = None,
+            cutoff : tp.Optional[float] = None,
+            return_bounds : bool = False,
+            ) -> bool:
         solver = self._solver
         vars = self._vars
         cgra = self.cgra
         design = self.design
         args = cgra, design, vars, solver
         incremental = self._incremental
+        init_func = optimizer.init_func
+        eval_func = optimizer.eval_func
+        limit_func = optimizer.limit_func
+
 
         if attest_func is None:
             attest_func : ModelReader = lambda *args : True
+
+        if first_cut is None:
+            first_cut = lambda l, u : max(u-1,l)# int((u+l)/2)
+
+        if build_timer is None:
+            build_timer = NullTimer()
+
+        if solve_timer is None:
+            solve_timer = NullTimer()
 
         if not verbose:
             log = lambda *args, **kwargs :  None
         else:
             log = ft.partial(print, sep='', flush=True)
 
+
+        if cutoff is None or cutoff == 0:
+            def check_cutoff(lower, upper):
+                return lower < upper
+        else:
+            def check_cutoff(lower, upper):
+                return (upper - lower)/((upper + lower)/ 2) > cutoff
+
+
+
         if incremental:
             sat_cb = solver.Push
-            unsat_cb = solver.Pop
+            _unsat_cb_on = solver.Pop
+            _unsat_cb_off = lambda : None
+            unsat_cb = _unsat_cb_on
         else:
             sat_cb = self._reset
-            unsat_cb = self._reset
+            unsat_cb = _unsat_cb_on = _unsat_cb_off = self._reset
 
         def apply(*funcs : ConstraintGeneratorType) -> tp.List[smt_switch_types.Term]:
             x = []
             log('Building constraints:')
+            build_timer.start()
             for f in funcs:
                 log('  ', f.__qualname__, end='... ')
                 solver.Assert(f(*args))
                 log('done')
+            build_timer.stop()
             log('---\n')
 
+        def do_checksat():
+            solve_timer.start()
+            s = solver.CheckSat()
+            solve_timer.stop()
+            return s
 
         apply(*init_funcs, init_func, *funcs)
 
@@ -145,39 +201,45 @@ class PNR:
         else:
             funcs = *init_funcs, init_func, *funcs
 
-
-        if solver.CheckSat():
+        if do_checksat():
             lower = 0
             best = vars.save_model()
             upper = eval_func(cgra, design, best)
-            next = int((upper+lower)/2)
+            next = first_cut(lower, upper)
             attest_func(cgra, design, best)
             sat_cb()
 
-            while lower < upper:
+            while check_cutoff(lower, upper):
                 assert lower <= next <= upper
                 log(f'bounds: [{lower}, {upper}])')
                 log(f'next: {next}\n')
 
-                f = constraint_func(next)
+                f = limit_func(lower, next)
                 apply(*funcs, f)
 
-                if solver.CheckSat():
+                if do_checksat():
                     best = vars.save_model()
                     upper = eval_func(cgra, design, best)
                     attest_func(cgra, design, best)
                     sat_cb()
+                    unsat_cb = _unsat_cb_on
                 else:
                     lower = next+1
                     unsat_cb()
+                    unsat_cb = _unsat_cb_off
                 next = int((upper+lower)/2)
 
             self._model = best
-            assert lower == upper
             log(f'optimal found: {upper}')
-            return True
+            if return_bounds:
+                return (True, lower, upper)
+            else:
+                return True
         else:
-            return False
+            if return_bounds:
+                return (False, None, None)
+            else:
+                return False
 
     def solve(self, *, verbose : bool = False):
         solver = self._solver

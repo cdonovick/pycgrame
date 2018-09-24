@@ -1,27 +1,58 @@
+from abc import ABCMeta, abstractmethod
 import functools as ft
+import itertools as it
 import typing as tp
 import mrrg
 import design
 from mrrg import MRRG
 from design import Design
-from modeler import Modeler, Model
+from modeler import Modeler, Model, _get_path
 from constraints import ConstraintGeneratorType
 from smt_switch_types import Solver, Term, Sort
-from util import term
+from util import BiDict, BiMultiDict
 
 EvalType = tp.Callable[[MRRG, Design, Model], int]
-OptGeneratorType = tp.Callable[[int], ConstraintGeneratorType]
+OptGeneratorType = tp.Callable[[int, int], ConstraintGeneratorType]
+NodeFilter = tp.Callable[[mrrg.Node], bool]
 
-def init_popcount(node_filter : tp.Callable[[mrrg.Node], bool]) -> ConstraintGeneratorType:
-    p = ft.partial(_init_popcount, node_filter)
-    p.__name__ = f'{init_popcount.__name__}({node_filter.__name__})'
-    p.__qualname__ = f'{init_popcount.__qualname__}({node_filter.__qualname__})'
-    return p
 
-# HACK OH GOD THE HACKINESS
-__pop_count = None
-def _init_popcount_ite(
-        node_filter : tp.Callable[[mrrg.Node], bool],
+T = tp.TypeVar('T')
+WrappedType = tp.Callable[[NodeFilter], T]
+
+class Optimizer:
+    init_func  : ConstraintGeneratorType
+    eval_func  : EvalType
+    limit_func : OptGeneratorType
+
+    def __init__(self, 
+            node_filter   : NodeFilter, 
+            init_wrapper  : WrappedType[ConstraintGeneratorType],
+            eval_wrapper  : WrappedType[EvalType],
+            limit_wrapper : WrappedType[OptGeneratorType], 
+            ):
+
+        self.init_func  = init_wrapper(node_filter)
+        self.eval_func  = eval_wrapper(node_filter)
+        self.limit_func = limit_wrapper(node_filter)
+
+
+__kwarg_format = '{}={}'
+def AutoPartial(f : tp.Callable):
+    @ft.wraps(f)
+    def wrapper(*args, **kwargs):
+        p = ft.partial(f, *args, **kwargs)
+        arg_str = ", ".join(map(repr,args))
+        kwarg_str = ", ".join(it.starmap(__kwarg_format.format, kwargs.items()))
+        suffix = '(' + ", ".join(filter(bool, [arg_str, kwarg_str])) + ')'
+        p.__name__ = f.__name__ + suffix
+        p.__qualname__ = f.__qualname__ + suffix
+        return p
+    return wrapper
+        
+        
+@AutoPartial
+def init_popcount_ite(
+        node_filter : NodeFilter,
         cgra : MRRG,
         design : Design,
         vars : Modeler,
@@ -39,12 +70,13 @@ def _init_popcount_ite(
                 ) for n in nodes)
             )
         )
-    global __pop_count
-    __pop_count = vars.init_var('pop_count', bv)
-    return expr == __pop_count
 
-def _init_popcount_concat(
-        node_filter : tp.Callable[[mrrg.Node], bool],
+    pop_count = vars.init_var(node_filter, bv)
+    return expr == pop_count
+
+@AutoPartial
+def init_popcount_concat(
+        node_filter : NodeFilter,
         cgra : MRRG,
         design : Design,
         vars : Modeler,
@@ -61,12 +93,80 @@ def _init_popcount_concat(
                 ) for n in nodes)
             )
         )
-    global __pop_count
-    __pop_count = vars.init_var('pop_count', expr.sort)
-    return expr == __pop_count
 
-def _init_popcount_shannon(
-        node_filter : tp.Callable[[mrrg.Node], bool],
+    pop_count = vars.init_var(node_filter, expr.sort)
+    return expr == pop_count
+
+@AutoPartial
+def init_popcount_bithack(
+        node_filter : NodeFilter,
+        cgra : MRRG,
+        design : Design,
+        vars : Modeler,
+        solver : Solver) -> Term:
+    def _build_grouped_mask(k, n):
+        '''
+        build_grouped_mask :: int -> int -> Term
+        returns the unique int m of length n that matches the following RE
+        ((0{0,k} 1{k}) | (1{0,k})) (0{k} 1{k})*
+        '''
+        m = 0
+        for i in range(k):
+            m |= 1 << i
+        c = 2*k
+        while c < n:
+            m |= m << c
+            c *= 2
+        return solver.TheoryConst(solver.BitVec(n), m)
+
+
+    constraints = []
+    vs = [vars[n, v] for n in cgra.all_nodes if node_filter(n) for v in design.values]
+    width = len(vs)
+    bv = vars.anonymous_var(solver.BitVec(width))
+
+    for idx,v in enumerate(vs):
+        constraints.append(bv[idx] == v)
+
+    # Boolector can't handle lshr on non power of 2, so zero extend
+    if solver.solver_name == 'Boolector' and (width & (width -1)) != 0:
+        l = 1 << width.bit_length()
+        bv = solver.Concat(solver.TheoryConst(solver.BitVec(l - width), 0), bv)
+
+    bsize = bv.sort.width
+    b_point = bsize.bit_length()
+
+    lshr = solver.BVLshr
+
+    if bsize == 1:
+        return bv
+    elif bsize == 2:
+        return (lshr(bv, 1)) + (bv & 1)
+
+    s = 2**((bsize - 1).bit_length())
+
+    max_exp = (s - 1).bit_length()
+    mvals = [(2**i, _build_grouped_mask(2**i, bsize)) for i in range(max_exp)]
+    x = bv - (lshr(bv, mvals[0][0]) & mvals[0][1])
+    x = (x & mvals[1][1]) + (lshr(x, mvals[1][0]) & mvals[1][1])
+
+    for i in mvals[2:]:
+        x += lshr(x, i[0])
+        if i[0] <= b_point:
+            x &= i[1]
+    
+    x &= (2**b_point - 1)
+
+    pop_count = vars.init_var(node_filter, bv.sort)
+    constraints.append(pop_count == x)
+    return solver.And(constraints)
+
+
+# HACK OH GOD THE HACKINESS
+__pop_count = None
+@AutoPartial
+def init_popcount_shannon(
+        node_filter : NodeFilter,
         cgra : MRRG,
         design : Design,
         vars : Modeler,
@@ -96,14 +196,10 @@ def _init_popcount_shannon(
     __pop_count = c
     return True
 
-def count(node_filter : tp.Callable[[mrrg.Node], bool]) -> EvalType:
-    p = ft.partial(_count, node_filter)
-    p.__name__ = f'{count.__name__}({node_filter.__name__})'
-    p.__qualname__ = f'{count.__qualname__}({node_filter.__qualname__})'
-    return p
 
-def _count(
-        node_filter : tp.Callable[[mrrg.Node], bool],
+@AutoPartial
+def count(
+        node_filter : NodeFilter,
         cgra : MRRG,
         design : Design,
         vars : Model) -> int:
@@ -114,27 +210,57 @@ def _count(
             if node_filter(node))
     return s
 
-def limit_popcount(n : int) -> ConstraintGeneratorType:
-    p = ft.partial(_limit_popcount, n)
-    p.__name__ = f'{limit_popcount.__name__}({n})'
-    p.__qualname__ = f'{limit_popcount.__qualname__}({n})'
-    return p
+@AutoPartial
+def smart_count(
+        node_filter : NodeFilter,
+        cgra : MRRG,
+        design : Design,
+        vars : Model) -> int:
+    
+    F_map = BiDict()
 
-def _limit_popcount_total(
+    for pe in cgra.functional_units:
+        for op in design.operations:
+            if vars[pe, op] == 1:
+                F_map[op] = pe
+    used = set()
+    for op in design.operations:
+        value = op.output
+        if value is not None:
+            pe = F_map[op]
+            dsts = {(F_map[dst].operands[port]) for dst, port in value.dsts}
+            for dst in value.dsts:
+                dst_node = F_map[dst[0]].operands[dst[1]]
+                for node in _get_path(vars, pe, value, dst, dst_node):
+                    if node_filter(node):
+                        used.add(node)
+    return len(used)
+
+
+@AutoPartial #node_filter
+@AutoPartial #l, n
+def limit_popcount_total(
+        node_filter : NodeFilter,
+        l : int,
         n : int,
         cgra : MRRG,
         design : Design,
         vars : Model,
         solver : Solver) -> Term:
-    v = __pop_count
-    if n < 0:
+    v = vars[node_filter]
+    if n < 0 or n < l:
         assert 0
-    elif n.bit_length() > v.sort.width:
+    elif n.bit_length() > v.sort.width or l.bit_length() > v.sort.width:
         assert 0
     else:
-        return solver.BVUle(v, n)
+    #    return solver.BVUle(v, n)
+        return solver.And(solver.BVUle(l, v), solver.BVUle(v, n))
 
-def _limit_popcount_shannon(
+
+@AutoPartial
+def limit_popcount_shannon(
+        node_filter : NodeFilter,
+        l : int,
         n : int,
         cgra : MRRG,
         design : Design,
@@ -152,8 +278,8 @@ def _limit_popcount_shannon(
 def mux_filter(node : mrrg.Node) -> bool:
     return isinstance(node, mrrg.Mux)
 
+def mux_reg_filter(node :  mrrg.Node) -> bool:
+    return isinstance(node, (mrrg.Mux, mrrg.Register))
+
 def route_filter(node : mrrg.Node) -> bool:
     return not isinstance(node, mrrg.FunctionalUnit)
-
-_init_popcount = _init_popcount_concat
-_limit_popcount = _limit_popcount_total

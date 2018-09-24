@@ -1,0 +1,75 @@
+<cgra>
+	<module name="fblock">
+		                    <input name="in0"/>
+		<input name="in3"/>                     <input name="in1"/>
+		                    <input name="in2"/>
+		<output name="out"/>
+		<inst name="func" module="FuncUnit" op="add sub mul div and or xor shl shr"/>
+		<inst name="const" module="ConstUnit"/>
+		<inst name="register" module="Register"/>
+		<wire name="in_a"/> <wire name="in_b"/> <wire name="func_out"/>
+		<connection select-from="this.in0 this.in1 this.in2 this.in3 register.out" to="in_a in_b"/>
+		<connection select-from="in_a const.out" to="func.in_a"/>
+		<connection select-from="in_b const.out" to="func.in_b"/>
+		<connection select-from="in_a in_b func.out" to="func_out"/>
+		<connection from="func_out" to="register.in"/>
+		<connection select-from="func_out const.out register.out" to="this.out"/>
+	</module>
+	<module name="ioblock">
+		<input name="in"/>
+		<output name="out"/>
+		<inst name="io" module="FuncUnit" op="load store"/>
+		<connection from="this.in" to="io.in_a"/>
+		<connection from="io.out" to="this.out"/>
+	</module>
+	<architecture col="6" row="6">
+		<!-- NORTH IOs -->
+		<pattern row-range="0 0" col-range="1 4">
+			<block module="ioblock"/>
+		</pattern>
+
+		<!-- EAST IOs -->
+		<pattern row-range="1 4" col-range="5 5">
+			<block module="ioblock"/>
+		</pattern>
+
+		<!-- SOUTH IOs -->
+		<pattern row-range="5 5" col-range="1 4">
+			<block module="ioblock"/>
+		</pattern>
+
+		<!-- WEST IOs -->
+		<pattern row-range="1 4" col-range="0 0">
+			<block module="ioblock"/>
+		</pattern>
+
+		<!-- BLOCKS -->
+		<pattern row-range="1 4" col-range="1 4">
+			<block module="fblock"/>
+		</pattern>
+
+		<!-- Wires -->
+		<pattern row-range="0 0" col-range="1 4">
+			<connection from="(rel  1  0).out" to="(rel 0 0).in"/>
+		</pattern>
+
+		<pattern row-range="5 5" col-range="1 4">
+			<connection from="(rel -1  0).out" to="(rel 0 0).in"/>
+		</pattern>
+
+		<pattern row-range="1 4" col-range="0 0">
+			<connection from="(rel  0  1).out" to="(rel 0 0).in"/>
+		</pattern>
+
+		<pattern row-range="1 4" col-range="5 5">
+			<connection from="(rel  0 -1).out" to="(rel 0 0).in"/>
+		</pattern>
+
+		<pattern row-range="1 4" col-range="1 4">
+			<connection from="(rel -1  0).out" to="(rel 0 0).in0"/>
+			<connection from="(rel  0  1).out" to="(rel 0 0).in1"/>
+			<connection from="(rel  1  0).out" to="(rel 0 0).in2"/>
+			<connection from="(rel  0 -1).out" to="(rel 0 0).in3"/>
+		</pattern>
+	</architecture>
+</cgra>

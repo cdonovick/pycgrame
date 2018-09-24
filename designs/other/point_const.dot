@@ -1,0 +1,9 @@
+digraph G {
+	load[opcode=load];
+	const[opcode=const];
+	add[opcode=add];
+	store[opcode=store];
+	load->add[operand=0];
+	const->add[operand=1];
+	add->store[operand=0];
+}

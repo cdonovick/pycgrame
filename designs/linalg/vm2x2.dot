@@ -1,0 +1,30 @@
+digraph G {
+	v0[opcode=load];
+	v1[opcode=load];
+	a00[opcode=load];
+	a01[opcode=load];
+	a10[opcode=load];
+	a11[opcode=load];
+	c0[opcode=store];
+	c1[opcode=store];
+	m00[opcode=mul];
+	m01[opcode=mul];
+	m10[opcode=mul];
+	m11[opcode=mul];
+	s0[opcode=add];
+	s1[opcode=add];
+	v0->m00[operand=0];
+	v0->m10[operand=0];
+	v1->m01[operand=0];
+	v1->m11[operand=0];
+	a00->m00[operand=1];
+	a10->m01[operand=1];
+	a01->m10[operand=1];
+	a11->m11[operand=1];
+	m00->s0[operand=0];
+	m01->s0[operand=1];
+	m10->s1[operand=0];
+	m11->s1[operand=1];
+	s0->c0[operand=0];
+	s1->c1[operand=0];
+}

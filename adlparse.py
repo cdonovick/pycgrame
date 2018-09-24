@@ -244,13 +244,17 @@ def _verify_block(this_block : _BLOCK):
 
 def _verify_pre_flatten_cgra(cgra : _CGRA, ties : _UNFLATTENED_TIE_MAP):
     for loc, port in ties:
-        assert loc in cgra.blocks, loc
+        if not loc in cgra.blocks:
+            warnings.warn(f'input doest not exist @ {loc}')
+            continue
         block = cgra.blocks[loc]
         assert isinstance(block, _BLOCK)
         assert port in block.output_ports
 
     for loc, port in ties.I:
-        assert loc in cgra.blocks, loc
+        if not loc in cgra.blocks:
+            warnings.warn(f'output does not exist block @ {loc}')
+            continue
         block = cgra.blocks[loc]
         assert isinstance(block, _BLOCK)
         assert port in block.input_ports, (loc, port, block)
@@ -632,7 +636,6 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
             m = re.fullmatch(connect_expr, s)
             assert m is not None, s
             return int(m.group(1)), int(m.group(2)), m.group(3)
-
 
         for pattern in arch.findall('pattern'):
             pblocks = [blocks[x.attrib['module']] for x in pattern.findall('block')]

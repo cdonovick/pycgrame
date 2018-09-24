@@ -38,7 +38,7 @@ class Operation(NamedIDObject):
         return self._inputs
 
     def _add_input(self, port, net) -> None:
-        assert port not in self.inputs
+        assert port not in self.inputs, '\n%s\n%s\n%s\n' % (self, port, net)
         self._inputs[port] = net
 
     def _set_output(self, net) -> None:

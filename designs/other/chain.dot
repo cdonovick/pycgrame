@@ -1,0 +1,8 @@
+digraph G {
+load0[opcode=load];
+add1[opcode=add];
+out2[opcode=output];
+load0->add1[operand=0];
+load0->add1[operand=1];
+add1->out2[operand=0];
+}

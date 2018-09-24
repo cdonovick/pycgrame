@@ -6,7 +6,7 @@ import argparse
 import time
 
 parser = argparse.ArgumentParser(description='Run place and route')
-parser.add_argument('design', metavar='<DESIGN_FILE>', help='Mapped coreir file')
+parser.add_argument('design', metavar='<DESIGN_FILE>', help='dot file')
 parser.add_argument('fabric', metavar='<FABRIC_FILE>', help='XML Fabric file')
 parser.add_argument('--contexts', help='Number of contexts', type=int, default=1)
 parser.add_argument('--verbose', '-v', help='print debug information', action='store_true', default=False)
@@ -61,21 +61,30 @@ funcs = (
         constraints.routing_resource_usage,
     )
 
-filter_func = optimization.mux_filter
 if args.optimize:
+    #filter_func = optimization.route_filter
+    #filter_func = optimization.mux_filter
+    filter_func = optimization.mux_reg_filter
     opt_start = time.perf_counter()
+    optimizer = optimization.Optimizer(filter_func, 
+            optimization.init_popcount_bithack, 
+            optimization.smart_count,
+            optimization.limit_popcount_total)
     sat = pnr.optimize_design(
-            optimization.init_popcount(filter_func),
-            optimization.count(filter_func),
-            optimization.limit_popcount,
+            optimizer,
             init,
             funcs,
             verbose=verbose,
-            attest_func=modeler.model_checker,)
+            attest_func=modeler.model_checker,
+            #next_func=lambda u,l: u-1,
+            )
     opt_end = time.perf_counter()
     if sat:
         pnr.attest_design(modeler.model_checker, verbose=verbose)
         print('SAT')
+        if verbose:
+#            pnr.attest_design(modeler.model_info, verbose=verbose)
+            pnr.attest_design(modeler.routing_stats, verbose=verbose)
     else:
         print('UNSAT')
 
@@ -100,6 +109,7 @@ else:
         print('SAT')
         if verbose:
             pnr.attest_design(modeler.model_info, verbose=verbose)
+            pnr.attest_design(modeler.routing_stats, verbose=verbose)
     else:
         print('UNSAT')
 

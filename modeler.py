@@ -18,7 +18,7 @@ class Modeler(Mapping):
         self._vars = dict()
 
     def init_var(self, key, sort : Sort) -> Term:
-        assert key not in self._vars
+        assert key not in self._vars, key
         self._vars[key] = t = self.anonymous_var(sort)
         return t
 
@@ -103,6 +103,33 @@ def model_checker(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> Non
                 node = pe
                 for n in _get_path(vars, pe, value, dst, dst_node):
                     assert vars[n, value, dst] == 1
+
+def routing_stats(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
+    F_map = BiDict()
+
+    for pe in cgra.functional_units:
+        for op in design.operations:
+            if vars[pe, op] == 1:
+                F_map[op] = pe
+    reg = set()
+    mux = set()
+    for op in design.operations:
+        value = op.output
+        if value is not None:
+            pe = F_map[op]
+            dsts = {(F_map[dst].operands[port]) for dst, port in value.dsts}
+            for dst in value.dsts:
+                assert dst[0] in F_map
+                dst_node = F_map[dst[0]].operands[dst[1]]
+                for node in _get_path(vars, pe, value, dst, dst_node):
+                    if isinstance(node, mrrg.Register):
+                        reg.add(node)
+                    elif isinstance(node, mrrg.Mux):
+                        mux.add(node)
+
+    print(f'Total muxes: {len(mux)}')
+    print(f'Total register: {len(reg)}')
+
 
 def model_info(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
     F_map = BiDict()

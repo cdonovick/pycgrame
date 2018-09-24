@@ -1,0 +1,5 @@
+digraph G {
+load0[opcode=load];
+out1[opcode=store];
+load0->out1[operand=0];
+}
