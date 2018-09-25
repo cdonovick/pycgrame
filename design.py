@@ -53,6 +53,11 @@ class Operation(NamedIDObject):
     def opcode(self):
         return self._opcode
 
+    @property
+    def duplicate(self):
+        #return False
+        return self.opcode == 'const'
+
 class Design(NamedIDObject):
     def __init__(self, mods : dict, ties : set, name : str = ""):
         super().__init__(name)

@@ -1,6 +1,7 @@
 import typing as tp
 import mrrg
 import design
+import functools as ft
 from mrrg import MRRG
 from design import Design
 from modeler import Modeler
@@ -38,14 +39,18 @@ def _is_one_hot(var : Term, solver : Solver) -> Term:
     return solver.Or(c)
 
 def op_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
-    ''' Assert all ops are placed exactly one time '''
+    ''' Assert all ops are placed exactly one time
+    unless they can be duplicated in which case assert they are placed '''
     bv = solver.BitVec(len(cgra.functional_units))
     c = []
     for op in design.operations:
-        op_vars = vars.anonymous_var(bv)
-        for idx,pe in enumerate(cgra.functional_units):
-            c.append(op_vars[idx] == vars[pe, op])
-        c.append(_is_one_hot(op_vars, solver))
+        if op.duplicate:
+            c.append(ft.reduce(solver.BVOr, (vars[pe, op] for pe in cgra.functional_units)) == 1)
+        else:
+            op_vars = vars.anonymous_var(bv)
+            for idx,pe in enumerate(cgra.functional_units):
+                c.append(op_vars[idx] == vars[pe, op])
+            c.append(_is_one_hot(op_vars, solver))
 
     return solver.And(c)
 
@@ -95,9 +100,11 @@ def routing_resource_usage(cgra : MRRG, design : Design, vars : Modeler, solver 
     c = []
     for node in cgra.all_nodes:
         for value in design.values:
+            v = vars[node, value]
             for dst in value.dsts:
                 #node,value,dst => node,value
-                c.append(solver.Or(vars[node, value, dst] == 0, vars[node, value] == 1))
+                c.append(solver.Or(vars[node, value, dst] == 0, v == 1))
+
     return solver.And(c)
 
 def init_value(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
@@ -110,9 +117,13 @@ def init_value(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) ->
             value = op.output
             if value is not None:
                 v = vars[pe, op]
-                for dst in value.dsts:
-                    v_ = vars[pe, value, dst]
+                if op.duplicate:
+                    v_ = ft.reduce(solver.BVOr, (vars[pe, value, dst] for dst in value.dsts))
                     c.append(v == v_)
+                else:
+                    for dst in value.dsts:
+                        v_ = vars[pe, value, dst]
+                        c.append(v == v_)
 
     return solver.And(c)
 

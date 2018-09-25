@@ -63,19 +63,21 @@ def _get_path(
             if model[n, value, dst] == 1:
                 assert next is None
                 next = n
-        assert next is not None
+        if next is None:
+            raise StopIteration()
         yield from _get_path(model, next, value, dst, dst_node)
 
 
 def model_checker(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
-    F_map = BiDict()
+    F_map = BiMultiDict()
     R_map = BiMultiDict()
 
     for op in design.operations:
         for pe in cgra.functional_units:
             if vars[pe, op] == 1:
-                assert op not in F_map
-                assert pe not in F_map.I
+                if not op.duplicate:
+                    assert op not in F_map
+                    assert pe not in F_map.I
                 F_map[op] = pe
         assert op in F_map
 
@@ -92,20 +94,26 @@ def model_checker(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> Non
                     assert vars[node, value] == 1
 
     for op in design.operations:
-        pe = F_map[op]
         value = op.output
         if value is not None:
-            dsts = {(F_map[dst].operands[port]) for dst, port in value.dsts}
-            assert pe in R_map[value]
             for dst in value.dsts:
                 assert dst[0] in F_map
-                dst_node = F_map[dst[0]].operands[dst[1]]
-                node = pe
-                for n in _get_path(vars, pe, value, dst, dst_node):
-                    assert vars[n, value, dst] == 1
+                for _dst_node in F_map[dst[0]]:
+                    dst_node = _dst_node.operands[dst[1]]
+                    reached = False
+                    for pe in F_map[op]:
+                        assert pe in R_map[value]
+                        if vars[pe, value, dst]:
+                            for n in _get_path(vars, pe, value, dst, dst_node):
+                                assert vars[n, value, dst] == 1
+                                if n == dst_node:
+                                    assert not reached
+                                    reached = True
+                            assert reached
+                    assert reached
 
 def routing_stats(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
-    F_map = BiDict()
+    F_map = BiMultiDict()
 
     for pe in cgra.functional_units:
         for op in design.operations:
@@ -116,26 +124,26 @@ def routing_stats(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> Non
     for op in design.operations:
         value = op.output
         if value is not None:
-            pe = F_map[op]
-            dsts = {(F_map[dst].operands[port]) for dst, port in value.dsts}
-            for dst in value.dsts:
-                assert dst[0] in F_map
-                dst_node = F_map[dst[0]].operands[dst[1]]
-                for node in _get_path(vars, pe, value, dst, dst_node):
-                    if isinstance(node, mrrg.Register):
-                        reg.add(node)
-                    elif isinstance(node, mrrg.Mux):
-                        mux.add(node)
+            for pe in F_map[op]:
+                for dst in value.dsts:
+                    assert dst[0] in F_map
+                    for _dst_node in F_map[dst[0]]:
+                        dst_node = _dst_node.operands[dst[1]]
+                        for node in _get_path(vars, pe, value, dst, dst_node):
+                            if isinstance(node, mrrg.Register):
+                                reg.add(node)
+                            elif isinstance(node, mrrg.Mux):
+                                mux.add(node)
 
     print(f'Total muxes: {len(mux)}')
     print(f'Total register: {len(reg)}')
 
 
 def model_info(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
-    F_map = BiDict()
+    F_map = BiMultiDict()
 
-    for pe in cgra.functional_units:
-        for op in design.operations:
+    for op in design.operations:
+        for pe in cgra.functional_units:
             if vars[pe, op] == 1:
                 F_map[op] = pe
                 print(f'{op.name}({op.opcode}): {pe.name}')
@@ -143,11 +151,15 @@ def model_info(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
     for op in design.operations:
         value = op.output
         if value is not None:
-            pe = F_map[op]
-            dsts = {(F_map[dst].operands[port]) for dst, port in value.dsts}
             for dst in value.dsts:
                 assert dst[0] in F_map
-                dst_node = F_map[dst[0]].operands[dst[1]]
-                print(f'{op.name}->{dst[0].name}:{dst[1]}')
-                for node in _get_path(vars, pe, value, dst, dst_node):
-                    print(f'\t{node.name}')
+                for _dst_node in F_map[dst[0]]:
+                    dst_node = _dst_node.operands[dst[1]]
+                    for pe in F_map[op]:
+                        if vars[pe, value, dst]:
+                            print(f'{op.name}->{dst[0].name}:{dst[1]}')
+                            for n in _get_path(vars, pe, value, dst, dst_node):
+                                assert vars[n, value, dst] == 1
+                                print(f'\t{n.name}')
+
+

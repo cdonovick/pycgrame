@@ -65,6 +65,7 @@ if args.optimize:
     #filter_func = optimization.route_filter
     #filter_func = optimization.mux_filter
     filter_func = optimization.mux_reg_filter
+    #filter_func = optimization.no_filter
     opt_start = time.perf_counter()
     optimizer = optimization.Optimizer(filter_func,
             optimization.init_popcount_bithack,
@@ -83,7 +84,7 @@ if args.optimize:
         pnr.attest_design(modeler.model_checker, verbose=verbose)
         print('SAT')
         if verbose:
-#            pnr.attest_design(modeler.model_info, verbose=verbose)
+            pnr.attest_design(modeler.model_info, verbose=verbose)
             pnr.attest_design(modeler.routing_stats, verbose=verbose)
     else:
         print('UNSAT')

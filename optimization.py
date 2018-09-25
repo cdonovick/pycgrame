@@ -205,7 +205,7 @@ def smart_count(
         design : Design,
         vars : Model) -> int:
 
-    F_map = BiDict()
+    F_map = BiMultiDict()
 
     for pe in cgra.functional_units:
         for op in design.operations:
@@ -215,13 +215,13 @@ def smart_count(
     for op in design.operations:
         value = op.output
         if value is not None:
-            pe = F_map[op]
-            dsts = {(F_map[dst].operands[port]) for dst, port in value.dsts}
-            for dst in value.dsts:
-                dst_node = F_map[dst[0]].operands[dst[1]]
-                for node in _get_path(vars, pe, value, dst, dst_node):
-                    if node_filter(node):
-                        used.add(node)
+            for pe in F_map[op]:
+                for dst in value.dsts:
+                    for _dst_node in F_map[dst[0]]:
+                        dst_node = _dst_node.operands[dst[1]]
+                        for node in _get_path(vars, pe, value, dst, dst_node):
+                            if node_filter(node):
+                                used.add(node)
     return len(used)
 
 
@@ -272,3 +272,6 @@ def mux_reg_filter(node :  mrrg.Node) -> bool:
 
 def route_filter(node : mrrg.Node) -> bool:
     return not isinstance(node, mrrg.FunctionalUnit)
+
+def no_filter(node : mrrg.Node) -> bool:
+    return True
