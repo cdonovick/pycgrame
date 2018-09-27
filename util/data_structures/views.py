@@ -1,171 +1,59 @@
-import weakref
-
-from collections.abc import Mapping, Sequence, Set
+import typing as tp
 '''A collection of adabters to make immutable data structures'''
 
-class MapView(Mapping):
-    __slot__ = '_ref', '__weakref__'
+__all__ = ['CollectionView', 'MapView', 'SequenceView', 'SetView']
 
-    def __init__(self, map : Mapping):
-        if not isinstance(map, Mapping):
-            raise ValueError()
-        self._ref = weakref.ref(map)
+T_co = tp.TypeVar('T_co', covariant=True)
+KT = tp.TypeVar('KT')
+VT_co = tp.TypeVar('VT_co', covariant=True)
 
-    def __getitem__(self, idx):
-        map = self._ref()
-        try:
-            return map.__getitem__(idx)
-        except AttributeError as e:
-            if map is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+class CollectionView(tp.Collection[T_co]):
+    __slots__ = '_obj',
 
-    def __iter__(self):
-        map = self._ref()
-        try:
-            return map.__iter__()
-        except AttributeError as e:
-            if map is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+    _obj : tp.Collection[T_co]
 
-    def __len__(self):
-        map = self._ref()
-        try:
-            return map.__len__()
-        except AttributeError as e:
-            if map is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+    def __init__(self, obj : tp.Collection[T_co]) -> None:
+        self._obj = obj
 
-    def __repr__(self):
-        map = self._ref()
-        try:
-            return f'{self.__class__.__name__}({map.__repr__()})'
-        except AttributeError as e:
-            if map is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+    def __contains__(self, elem) -> bool:
+        return self._obj.__contains__(elem)
 
-    def keys(self):
-        map = self._ref()
-        try:
-            return map.keys()
-        except AttributeError as e:
-            if map is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+    def __iter__(self) -> tp.Iterator[T_co]:
+        return self._obj.__iter__()
 
-    def values(self):
-        map = self._ref()
-        try:
-            return map.values()
-        except AttributeError as e:
-            if map is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+    def __len__(self) -> int:
+        return self._obj.__len__()
 
-    def items(self):
-        map = self._ref()
-        try:
-            return map.items()
-        except AttributeError as e:
-            if map is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self._obj.__repr__()})'
 
 
+class MapView(CollectionView[KT], tp.Mapping[KT, VT_co]):
+    __slots__ = ()
 
-class SequenceView(Sequence):
-    __slot__ = '_ref', #'__weakref__'
+    _obj : tp.MutableMapping[KT, VT_co]
 
-    def __init__(self, seq : Sequence):
-        self._ref = seq
-        if not isinstance(seq, Sequence):
-            raise ValueError()
-        #self._ref = weakref.ref(seq)
+    def __getitem__(self, idx : KT) -> VT_co:
+        return self._obj.__getitem__(idx)
+
+
+class SequenceView(CollectionView[T_co], tp.Sequence[T_co]):
+    __slots__ = ()
+
+    _obj : tp.MutableSequence[T_co]
+
+    @tp.overload
+    def __getitem__(self, idx : int) -> T_co:
+        ...
+
+    @tp.overload
+    def __getitem__(self, idx : slice) -> tp.Sequence[T_co]:
+        ...
 
     def __getitem__(self, idx):
-        seq = self._ref
-        try:
-            return seq.__getitem__(idx)
-        except AttributeError as e:
-            if seq is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+        return self._obj.__getitem__(idx)
 
-    def __len__(self):
-        seq = self._ref
-        try:
-            return seq.__len__()
-        except AttributeError as e:
-            if seq is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
 
-    def __repr__(self):
-        seq = self._ref
-        try:
-            return f'{self.__class__.__name__}({seq.__repr__()})'
-        except AttributeError as e:
-            if seq is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
-
-class SetView(Set):
-    __slot__ = '_ref', '__weakref__'
-
-    def __init__(self, set_ : Set):
-        if not isinstance(set_, Set):
-            raise ValueError()
-        self._ref = weakref.ref(set_)
-
-    def __contains__(self, elem):
-        set_ = self._ref()
-        try:
-            return set_.__contains__(elem)
-        except AttributeError as e:
-            if set_ is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
-
-    def __iter__(self):
-        set_ = self._ref()
-        try:
-            return set_.__iter__()
-        except AttributeError as e:
-            if set_ is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
-
-    def __len__(self):
-        set_ = self._ref()
-        try:
-            return set_.__len__()
-        except AttributeError as e:
-            if set_ is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
-    
-    def __repr__(self):
-        set_ = self._ref()
-        try:
-            return f'{self.__class__.__name__}({set.__repr__()})'
-        except AttributeError as e:
-            if set_ is None:
-                raise RuntimeError('Viewed object has been garbage collected')
-            else:
-                raise e
+class SetView(CollectionView[T_co], tp.AbstractSet[T_co]):
+    __slots__ = ()
+    _obj : tp.MutableSet[T_co]
