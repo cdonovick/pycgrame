@@ -92,6 +92,7 @@ def init_popcount_bithack(
         design : Design,
         vars : Modeler,
         solver : Solver) -> Term:
+
     def _build_grouped_mask(k, n):
         '''
         build_grouped_mask :: int -> int -> Term
@@ -107,45 +108,59 @@ def init_popcount_bithack(
             c *= 2
         return solver.TheoryConst(solver.BitVec(n), m)
 
+    def _is_power_of_2(x : int) -> bool:
+        return x & (x - 1) == 0
+
+    def _floor_log2(x : int) -> int:
+        return x.bit_length() - 1
+
+    def _prev_power_of_2(x : int) -> int:
+        return 1 << _floor_log2(x - 1)
+
+    def _next_power_of_2(x : int) -> int:
+        return 1 << x.bit_length()
+
 
     constraints = []
     vs = [vars[n, v] for n in cgra.all_nodes if node_filter(n) for v in design.values]
     width = len(vs)
+    # build a bitvector from the concanation of bits
     bv = vars.anonymous_var(solver.BitVec(width))
 
     for idx,v in enumerate(vs):
         constraints.append(bv[idx] == v)
 
     # Boolector can't handle lshr on non power of 2, so zero extend
-    if solver.solver_name == 'Boolector' and (width & (width -1)) != 0:
-        l = 1 << width.bit_length()
+    if solver.solver_name == 'Boolector' and not _is_power_of_2(width):
+        l = _next_power_of_2(width)
         bv = solver.Concat(solver.TheoryConst(solver.BitVec(l - width), 0), bv)
 
-    bsize = bv.sort.width
-    b_point = bsize.bit_length()
-
-    lshr = solver.BVLshr
-
-    if bsize == 1:
-        return bv
-    elif bsize == 2:
-        return (lshr(bv, 1)) + (bv & 1)
-
-    s = 2**((bsize - 1).bit_length())
-
-    max_exp = (s - 1).bit_length()
-    mvals = [(2**i, _build_grouped_mask(2**i, bsize)) for i in range(max_exp)]
-    x = bv - (lshr(bv, mvals[0][0]) & mvals[0][1])
-    x = (x & mvals[1][1]) + (lshr(x, mvals[1][0]) & mvals[1][1])
-
-    for i in mvals[2:]:
-        x += lshr(x, i[0])
-        if i[0] <= b_point:
-            x &= i[1]
-
-    x &= (2**b_point - 1)
-
+    width = bv.sort.width
     pop_count = vars.init_var(node_filter, bv.sort)
+
+    if width <= 1:
+        constraints.append(pop_count == bv)
+        return solver.And(constraints)
+    elif width == 2:
+        constraints.append(pop_count == (bv & 1) + (bv >> 1))
+        return solver.And(constraints)
+
+    max_shift = _prev_power_of_2(width)
+    max_mask_width = 4
+    final_mask = (1 << width.bit_length()) - 1
+
+    def _mask_shift_add(x, shift):
+        if shift <= max_mask_width:
+            mask = _build_grouped_mask(shift, width)
+            return (x & mask) + ((x >> shift) & mask)
+        else:
+            return x + (x >> shift)
+
+    shifts = it.takewhile(lambda n : n <= max_shift, (1 << i for i in it.count()))
+    i = next(shifts)
+    x = bv - ((bv >> i) & _build_grouped_mask(i, width))
+    x = ft.reduce(_mask_shift_add, shifts, x) & final_mask
+
     constraints.append(pop_count == x)
     return solver.And(constraints)
 
