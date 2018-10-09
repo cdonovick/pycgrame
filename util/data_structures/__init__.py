@@ -4,7 +4,6 @@ from .frozendict import *
 from .funcdict import *
 from .multidict import *
 from .restricteddict import *
-from .selectdict import *
 from .setlist import *
 from .sorteddict import *
 from .sortedset import *

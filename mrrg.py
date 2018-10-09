@@ -1,6 +1,6 @@
 import typing as tp
-from pnrdoctor.util.data_structures import make_restricted, BiDict, BiMultiDict, MapView, RestrictedDict
-from pnrdoctor.util import IDObject, NamedIDObject
+from util.data_structures import make_restricted, BiDict, BiMultiDict, MapView, RestrictedDict
+from util import IDObject, NamedIDObject
 
 from abc import ABCMeta, abstractmethod
 

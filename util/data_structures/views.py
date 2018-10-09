@@ -36,6 +36,8 @@ class MapView(CollectionView[KT], tp.Mapping[KT, VT_co]):
     def __getitem__(self, idx : KT) -> VT_co:
         return self._obj.__getitem__(idx)
 
+    def values(self) -> tp.ValuesView[VT_co]:
+        return self._obj.values()
 
 class SequenceView(CollectionView[T_co], tp.Sequence[T_co]):
     __slots__ = ()
