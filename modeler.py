@@ -109,7 +109,6 @@ def model_checker(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> Non
                                 if n == dst_node:
                                     assert not reached
                                     reached = True
-                            assert reached
                     assert reached
 
 def routing_stats(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
