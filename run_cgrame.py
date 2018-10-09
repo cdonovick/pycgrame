@@ -32,6 +32,7 @@ from pnr import PNR
 import constraints
 import optimization
 import modeler
+from util import Timer
 
 mods, ties = dotparse.dot2graph(design_file)
 design = Design(mods, ties)
@@ -66,6 +67,8 @@ if args.optimize:
     #filter_func = optimization.mux_filter
     filter_func = optimization.mux_reg_filter
     #filter_func = optimization.no_filter
+    solve_timer = Timer(time.perf_counter)
+    build_timer = Timer(time.perf_counter)
     opt_start = time.perf_counter()
     optimizer = optimization.Optimizer(filter_func,
             optimization.init_popcount_bithack,
@@ -77,6 +80,8 @@ if args.optimize:
             funcs,
             verbose=verbose,
             attest_func=modeler.model_checker,
+            solve_timer=solve_timer,
+            build_timer=build_timer,
             #next_func=lambda u,l: u-1,
             )
     opt_end = time.perf_counter()
@@ -91,6 +96,8 @@ if args.optimize:
 
     if args.time or verbose:
         print(f'Optimization took {opt_end - opt_start} seconds', flush=True)
+        print(f'Constraint building:\n\ttimes: {tuple(build_timer.times)}\n\ttotal: {build_timer.total}')
+        print(f'Solving:\n\ttimes: {tuple(solve_timer.times)}\n\ttotal: {solve_timer.total}')
 else:
     constraint_start = time.perf_counter()
     pnr.map_design(init, funcs, verbose=verbose)
