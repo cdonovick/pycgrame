@@ -248,7 +248,7 @@ def limit_popcount_total(
         n : int,
         cgra : MRRG,
         design : Design,
-        vars : Model,
+        vars : Modeler,
         solver : Solver) -> Term:
     v = vars[node_filter]
     if n < 0 or n < l:
@@ -268,7 +268,7 @@ def limit_popcount_shannon(
         n : int,
         cgra : MRRG,
         design : Design,
-        vars : Model,
+        vars : Modeler,
         solver : Solver) -> Term:
 
     if n < 0:

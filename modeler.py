@@ -12,7 +12,8 @@ ModelReader = tp.Callable[[mrrg.MRRG, design.Design, Model], tp.Any]
 class Modeler(Mapping):
     _var_counter = it.count()
     _solver : Solver
-    _vars : tp.Mapping[tp.Any, Term]
+    _vars : tp.MutableMapping[tp.Any, Term]
+
     def __init__(self, solver : Solver):
         self._solver = solver
         self._vars = dict()
@@ -40,7 +41,7 @@ class Modeler(Mapping):
         return d
 
     def reset(self) -> None:
-        self._vars : Model = dict()
+        self._vars = dict()
 
     @classmethod
     def gen_name(cls) -> str:
