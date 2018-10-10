@@ -150,16 +150,13 @@ class PNR:
         design = self.design
         args = cgra, design, vars, solver
         incremental = self._incremental
-        init_func = optimizer.init_func
-        eval_func = optimizer.eval_func
-        limit_func = optimizer.limit_func
 
 
         if attest_func is None:
             attest_func : ModelReader = lambda *args : True
 
         if first_cut is None:
-            first_cut = lambda l, u : max(u-1,l)# int((u+l)/2)
+            first_cut = lambda l, u : int(max(u - 1, (u+l)/2))
 
         if build_timer is None:
             build_timer = NullTimer()
@@ -167,16 +164,15 @@ class PNR:
         if solve_timer is None:
             solve_timer = NullTimer()
 
-
-
-        if cutoff is None or cutoff == 0:
+        if cutoff is None:
+            def check_cutoff(lower, upper):
+                return False
+        elif cutoff == 0:
             def check_cutoff(lower, upper):
                 return lower < upper
         else:
             def check_cutoff(lower, upper):
                 return (upper - lower)/((upper + lower)/ 2) > cutoff
-
-
 
         if incremental:
             sat_cb = solver.Push
@@ -203,7 +199,16 @@ class PNR:
             solve_timer.stop()
             return s
 
-        apply(*init_funcs, init_func, *funcs)
+        eval_func = optimizer.eval_func
+        limit_func = optimizer.limit_func
+
+        if cutoff is None:
+            funcs = *init_funcs, *funcs
+        else:
+            funcs = *init_funcs, optimizer.init_func, *funcs
+
+
+        apply(*funcs)
 
         if incremental:
             funcs = ()

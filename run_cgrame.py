@@ -72,6 +72,7 @@ if args.optimize:
     opt_start = time.perf_counter()
     optimizer = optimization.Optimizer(filter_func,
             optimization.init_popcount_bithack,
+#            optimization.init_popcount_concat,
             optimization.smart_count,
             optimization.limit_popcount_total)
     sat = pnr.optimize_design(
@@ -82,6 +83,7 @@ if args.optimize:
             attest_func=modeler.model_checker,
             solve_timer=solve_timer,
             build_timer=build_timer,
+            cutoff = 0.0,
             #next_func=lambda u,l: u-1,
             )
     opt_end = time.perf_counter()

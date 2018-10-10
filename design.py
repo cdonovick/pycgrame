@@ -1,10 +1,14 @@
+import typing as tp
 from util import IDObject, NamedIDObject, SortedDict
-from util import BiMultiDict, MultiDict, SortedFrozenSet
+from util import BiMultiDict, MultiDict, SortedFrozenSet, MapView
 
 class Value(IDObject):
     '''
        Holds a collection of ties that make up a net.
     '''
+    _src  : tp.Optional['Operation']
+    _dsts : tp.AbstractSet['Operation']
+
     def __init__(self, src, dsts=()):
         super().__init__()
         self._src = src
@@ -16,17 +20,21 @@ class Value(IDObject):
             dst._add_input(dst_port, self)
 
     @property
-    def src(self):
+    def src(self) -> tp.Optional['Operation']:
         return self._src
 
     @property
-    def dsts(self):
+    def dsts(self) -> tp.AbstractSet['Operation']:
         return self._dsts
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.src} -> {self.dsts}'
 
 class Operation(NamedIDObject):
+    _inputs : tp.MutableMapping[str, Value]
+    _output : tp.Optional[Value]
+    _opcode : str
+
     def __init__(self, name : str, opcode :str):
         super().__init__(name)
         self._inputs = BiMultiDict()  # port <-> value
@@ -34,28 +42,27 @@ class Operation(NamedIDObject):
         self._opcode = opcode
 
     @property
-    def inputs(self) -> BiMultiDict:
-        return self._inputs
+    def inputs(self) -> MapView[str, Value]:
+        return MapView(self._inputs)
 
-    def _add_input(self, port, net) -> None:
-        assert port not in self.inputs, '\n%s\n%s\n%s\n' % (self, port, net)
-        self._inputs[port] = net
+    def _add_input(self, port : str, val : Value) -> None:
+        assert port not in self.inputs, '\n%s\n%s\n%s\n' % (self, port, val)
+        self._inputs[port] = val
 
-    def _set_output(self, net) -> None:
+    def _set_output(self, val : Value) -> None:
         assert self.output is None
-        self._output = net
+        self._output = val
 
     @property
-    def output(self):
+    def output(self) -> tp.Optional[Value]:
         return self._output
 
     @property
-    def opcode(self):
+    def opcode(self) -> str:
         return self._opcode
 
     @property
-    def duplicate(self):
-        #return False
+    def duplicate(self) -> bool:
         return self.opcode == 'const'
 
 class Design(NamedIDObject):
@@ -78,13 +85,13 @@ class Design(NamedIDObject):
         for src in _ties:
             _values.add(Value(src, _ties[src]))
 
-        self._operations = SortedFrozenSet(_ops.values())
-        self._values     = SortedFrozenSet(_values)
+        self._operations = frozenset(_ops.values())
+        self._values     = frozenset(_values)
 
     @property
-    def operations(self) -> SortedFrozenSet:
+    def operations(self) -> tp.AbstractSet[Operation]:
         return self._operations
 
     @property
-    def values(self) -> SortedFrozenSet:
+    def values(self) -> tp.AbstractSet[Value]:
         return self._values

@@ -4,8 +4,8 @@ import itertools as it
 import typing as tp
 import mrrg
 import design
-from mrrg import MRRG
-from design import Design
+from mrrg import MRRG, Node
+from design import Design, Operation
 from modeler import Modeler, Model, _get_path
 from constraints import ConstraintGeneratorType
 from smt_switch_types import Solver, Term, Sort
@@ -14,8 +14,7 @@ from util import AutoPartial
 
 EvalType = tp.Callable[[MRRG, Design, Model], int]
 OptGeneratorType = tp.Callable[[int, int], ConstraintGeneratorType]
-NodeFilter = tp.Callable[[mrrg.Node], bool]
-
+NodeFilter = tp.Callable[[Node], bool]
 
 T = tp.TypeVar('T')
 WrappedType = tp.Callable[[NodeFilter], T]
@@ -35,7 +34,6 @@ class Optimizer:
         self.init_func  = init_wrapper(node_filter)
         self.eval_func  = eval_wrapper(node_filter)
         self.limit_func = limit_wrapper(node_filter)
-
 
 
 @AutoPartial(1)
@@ -146,20 +144,13 @@ def init_popcount_bithack(
         return solver.And(constraints)
 
     max_shift = _prev_power_of_2(width)
-    max_mask_width = 4
-    final_mask = (1 << width.bit_length()) - 1
 
     def _mask_shift_add(x, shift):
-        if shift <= max_mask_width:
-            mask = _build_grouped_mask(shift, width)
-            return (x & mask) + ((x >> shift) & mask)
-        else:
-            return x + (x >> shift)
+        mask = _build_grouped_mask(shift, width)
+        return (x & mask) + ((x >> shift) & mask)
 
     shifts = it.takewhile(lambda n : n <= max_shift, (1 << i for i in it.count()))
-    i = next(shifts)
-    x = bv - ((bv >> i) & _build_grouped_mask(i, width))
-    x = ft.reduce(_mask_shift_add, shifts, x) & final_mask
+    x = ft.reduce(_mask_shift_add, shifts, bv)
 
     constraints.append(pop_count == x)
     return solver.And(constraints)
@@ -279,14 +270,15 @@ def limit_popcount_shannon(
         v = __pop_count[n]
         return v == 1
 
-def mux_filter(node : mrrg.Node) -> bool:
+
+def mux_filter(node : Node) -> bool:
     return isinstance(node, mrrg.Mux)
 
-def mux_reg_filter(node :  mrrg.Node) -> bool:
+def mux_reg_filter(node :  Node) -> bool:
     return isinstance(node, (mrrg.Mux, mrrg.Register))
 
-def route_filter(node : mrrg.Node) -> bool:
+def route_filter(node : Node) -> bool:
     return not isinstance(node, mrrg.FunctionalUnit)
 
-def no_filter(node : mrrg.Node) -> bool:
+def no_filter(node : Node) -> bool:
     return True
