@@ -212,8 +212,6 @@ class PNR:
 
         if incremental:
             funcs = ()
-        else:
-            funcs = *init_funcs, init_func, *funcs
 
         if do_checksat():
             lower = 0
