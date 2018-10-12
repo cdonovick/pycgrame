@@ -25,18 +25,11 @@ def init_routing_vars(cgra : MRRG, design : Design, vars : Modeler, solver : Sol
                 vars.init_var((node, value, dst), bv1)
     return solver.TheoryConst(solver.Bool(), True)
 
+def _is_one_hot_or_0(var : Term, solver : Solver):
+    return (var & (var - 1)) == solver.TheoryConst(var.sort, 0)
+
 def _is_one_hot(var : Term, solver : Solver) -> Term:
-    c = []
-    bv = var.sort
-    if solver.solver_name == 'CVC4':
-        for i in range(var.sort.width):
-            c.append(var == solver.TheoryConst(bv, 1) << i)
-    else:
-        for i in range(var.sort.width):
-            c.append(var == solver.TheoryConst(bv, 1 << i))
-
-
-    return solver.Or(c)
+    return solver.And(_is_one_hot_or_0(var, solver), var != solver.TheoryConst(var.sort, 0)) 
 
 def op_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
     ''' Assert all ops are placed exactly one time
@@ -62,7 +55,7 @@ def pe_exclusivity(cgra : MRRG, design : Design, vars : Modeler, solver : Solver
         pe_vars = vars.anonymous_var(bv)
         for idx, op in enumerate(design.operations):
             c.append(pe_vars[idx] == vars[pe, op])
-        c.append(solver.Or(_is_one_hot(pe_vars, solver), pe_vars == 0))
+        c.append(_is_one_hot_or_0(pe_vars, solver))
 
     return solver.And(c)
 
@@ -88,7 +81,7 @@ def route_exclusivity(cgra : MRRG, design : Design, vars : Modeler, solver : Sol
         node_vars = vars.anonymous_var(bv)
         for idx, value in enumerate(design.values):
             c.append(node_vars[idx] == vars[node, value])
-        c.append(solver.Or(_is_one_hot(node_vars, solver), node_vars == 0))
+        c.append(_is_one_hot_or_0(node_vars, solver))
 
     return solver.And(c)
 
