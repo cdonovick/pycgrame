@@ -136,7 +136,6 @@ class PNR:
             solve_timer : tp.Optional[Timer] = None,
             cutoff : tp.Optional[float] = None,
             return_bounds : bool = False,
-            time_out : tp.Optional[float] = None,
             optimize_final : bool = False,
             ) -> bool:
 
@@ -165,9 +164,6 @@ class PNR:
 
         if first_cut is None:
             first_cut = lambda l, u : int(max(u - 1, (u+l)/2))
-
-        if time_out is not None:
-            pass
 
         if build_timer is None:
             build_timer = NullTimer()
