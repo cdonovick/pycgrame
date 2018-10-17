@@ -230,6 +230,19 @@ def smart_count(
                                 used.add(node)
     return len(used)
 
+@AutoPartial(1, max_arg_len=30)
+def freaze_fus(
+    model : Model,
+    cgra : MRRG,
+    design : Design,
+    vars : Modeler,
+    solver : Solver) -> Term:
+
+    c = []
+    for pe in cgra.functional_units:
+        for op in design.operations:
+            c.append(vars[pe, op] == model[pe, op])
+    return solver.And(c)
 
 @AutoPartial(1) #node_filter
 @AutoPartial(3) #l, n

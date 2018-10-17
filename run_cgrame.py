@@ -17,6 +17,7 @@ parser.add_argument('--parse-only', action='store_true', default=False, dest='pa
 parser.add_argument('--rewrite-fabric', default=None, dest='rewrite_name')
 parser.add_argument('--optimize', '-o', action='store_true', default=False)
 parser.add_argument('--incremental', '-i', action='store_true', default=False)
+parser.add_argument('--cutoff', type=float, default=None)
 
 
 args = parser.parse_args()
@@ -83,7 +84,7 @@ if args.optimize:
             attest_func=modeler.model_checker,
             solve_timer=solve_timer,
             build_timer=build_timer,
-            cutoff = 0.0,
+            cutoff = args.cutoff,
             #next_func=lambda u,l: u-1,
             )
     opt_end = time.perf_counter()
@@ -97,9 +98,15 @@ if args.optimize:
         print('UNSAT')
 
     if args.time or verbose:
-        print(f'Optimization took {opt_end - opt_start} seconds', flush=True)
-        print(f'Constraint building:\n\ttimes: {tuple(build_timer.times)}\n\ttotal: {build_timer.total}')
-        print(f'Solving:\n\ttimes: {tuple(solve_timer.times)}\n\ttotal: {solve_timer.total}')
+        def time_formater(time):
+            formatter = '{:.4}'.format
+            try:
+                return ', '.join(map(formatter, time))
+            except:
+                return formatter(time)
+        print(f'Optimization took {time_formater(opt_end - opt_start)} seconds', flush=True)
+        print(f'Constraint building:\n\ttimes: {time_formater(build_timer.times)}\n\ttotal: {time_formater(build_timer.total)}')
+        print(f'Solving:\n\ttimes: {time_formater(solve_timer.times)}\n\ttotal: {time_formater(solve_timer.total)}')
 else:
     constraint_start = time.perf_counter()
     pnr.map_design(init, funcs, verbose=verbose)

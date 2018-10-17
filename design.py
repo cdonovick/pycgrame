@@ -34,12 +34,14 @@ class Operation(NamedIDObject):
     _inputs : tp.MutableMapping[str, Value]
     _output : tp.Optional[Value]
     _opcode : str
+    _duplicate : bool
 
     def __init__(self, name : str, opcode :str):
         super().__init__(name)
         self._inputs = BiMultiDict()  # port <-> value
         self._output = None
         self._opcode = opcode
+        self._duplicate = False
 
     @property
     def inputs(self) -> MapView[str, Value]:
@@ -63,7 +65,10 @@ class Operation(NamedIDObject):
 
     @property
     def duplicate(self) -> bool:
-        return self.opcode == 'const'
+        return self._duplicate
+
+    def allow_duplicate(self):
+        self._duplicate = True
 
 class Design(NamedIDObject):
     def __init__(self, mods : dict, ties : set, name : str = ""):

@@ -29,7 +29,13 @@ class PNR:
             design : Design,
             solver_str : str,
             seed : int = 0,
-            incremental : bool = False):
+            incremental : bool = False,
+            duplicate_const : bool = False):
+
+        if duplicate_const:
+            for op in design.operations:
+                if op.opcode == 'const':
+                    op.allow_duplicate()
 
         self._cgra = cgra
         self._design  = design
@@ -130,6 +136,8 @@ class PNR:
             solve_timer : tp.Optional[Timer] = None,
             cutoff : tp.Optional[float] = None,
             return_bounds : bool = False,
+            time_out : tp.Optional[float] = None,
+            optimize_final : bool = False,
             ) -> bool:
 
         if not verbose:
@@ -158,6 +166,9 @@ class PNR:
         if first_cut is None:
             first_cut = lambda l, u : int(max(u - 1, (u+l)/2))
 
+        if time_out is not None:
+            pass
+
         if build_timer is None:
             build_timer = NullTimer()
 
@@ -173,6 +184,7 @@ class PNR:
         else:
             def check_cutoff(lower, upper):
                 return (upper - lower)/((upper + lower)/ 2) > cutoff
+
 
         if incremental:
             sat_cb = solver.Push
@@ -202,7 +214,7 @@ class PNR:
         eval_func = optimizer.eval_func
         limit_func = optimizer.limit_func
 
-        if cutoff is None:
+        if cutoff is None and not optimize_final:
             funcs = *init_funcs, *funcs
         else:
             funcs = *init_funcs, optimizer.init_func, *funcs
@@ -221,13 +233,28 @@ class PNR:
             attest_func(cgra, design, best)
             sat_cb()
 
+            next_f = None
+            if not check_cutoff(lower, upper) and optimize_final:
+                optimize_final = False
+                def check_cutoff(lower, upper):
+                    return lower < upper
+
+                log('freazing placement')
+                if incremental:
+                    next_f = optimization.freaze_fus(best)
+                else:
+                    funcs = *funcs, optimization.freaze_fus(best)
+
             while check_cutoff(lower, upper):
                 assert lower <= next <= upper
                 log(f'bounds: [{lower}, {upper}])')
                 log(f'next: {next}\n')
 
                 f = limit_func(lower, next)
-                apply(*funcs, f)
+                if next_f is None:
+                    apply(*funcs, f)
+                else:
+                    apply(*funcs, next_f, f)
 
                 if do_checksat():
                     best = vars.save_model()
@@ -238,6 +265,19 @@ class PNR:
                     lower = next+1
                     unsat_cb()
                 next = int((upper+lower)/2)
+
+                next_f = None
+                if not check_cutoff(lower, upper) and optimize_final:
+                    optimize_final = False
+                    def check_cutoff(lower, upper):
+                        return lower < upper
+
+                    log('freazing placement')
+                    if incremental:
+                        next_f = optimization.freaze_fus(best)
+                    else:
+                        funcs = *funcs, optimization.freaze_fus(best)
+
 
             self._model = best
             log(f'optimal found: {upper}')
