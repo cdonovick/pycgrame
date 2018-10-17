@@ -492,29 +492,6 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
         def _is_corner(row, col): return (row in {0, rows-1}) and (col in {0, cols-1})
         def _row_in_range(row): return 0 <= row < rows
         def _col_in_range(col): return 0 <= col < cols
-        #build a block for IO
-        itype = 'IO'
-        iname = itype.lower()
-        assert itype not in blocks
-        blocks[itype] = io_block = _BLOCK(itype, _INTERFACES[itype]['input_ports'], _INTERFACES[itype]['output_ports'])
-        io_block.instances[iname] = inst = _INSTANCE(iname, itype, io_block.input_ports, io_block.output_ports, {'op' : {'input', 'output'}})
-        for port in inst.input_ports:
-            pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
-            operand = _OPERAND_MAP[itype][port]
-            io_block.ports[pname] = _PORT(pname, 'in', 'out', operand)
-
-        for port in io_block.input_ports:
-            pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
-            assert pname in io_block.ports, (pname, io_block.ports)
-            iport = io_block.ports[pname].input_port
-            oport = io_block.ports[pname].output_port
-            io_block.ties[f'this.{port}'] = f'{pname}.{iport}'
-            io_block.ties[f'{pname}.{oport}'] = f'{iname}.{port}'
-
-        for port in io_block.output_ports:
-            io_block.ties[f'{iname}.{port}'] = f'this.{port}'
-
-        _verify_block(io_block)
 
         if len(arch.findall('mesh')):
             assert len(arch.findall('mesh')) == 1
@@ -524,7 +501,14 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
             assert len(arch.findall('pattern')) == 0
             mesh = arch.find('mesh')
 
-            assert mesh.attrib['io'] == "every-side-port"
+            if 'io' in mesh.attrib:
+                assert mesh.attrib['io'] == "every-side-port"
+                assert len(mesh.findall('exterior')) == 0
+                exterior = None
+            else:
+                assert len(mesh.findall('exterior')) == 1
+                exterior = mesh.find('exterior')
+
             assert len(mesh.findall('interior')) == 1
 
             interior = mesh.find('interior')
@@ -544,7 +528,14 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
             assert len(arch.findall('pattern')) == 0
             mesh = arch.find('diagonal')
 
-            assert mesh.attrib['io'] == "every-side-port"
+            if 'io' in mesh.attrib:
+                assert mesh.attrib['io'] == "every-side-port"
+                assert len(mesh.findall('exterior')) == 0
+                exterior = None
+            else:
+                assert len(mesh.findall('exterior')) == 1
+                exterior = mesh.find('exterior')
+
             assert len(mesh.findall('interior')) == 1
 
             interior = mesh.find('interior')
@@ -559,6 +550,36 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                 ( 1,  1, mesh.attrib['out-southeast'][1:], mesh.attrib['in-northwest'][1:]),
                 ( 1, -1, mesh.attrib['out-southwest'][1:], mesh.attrib['in-northeast'][1:]),
             ]
+
+        if exterior == None:
+            #build a block for IO
+            itype = 'IO'
+            iname = itype.lower()
+            assert itype not in blocks
+            blocks[itype] = io_block = _BLOCK(itype, _INTERFACES[itype]['input_ports'], _INTERFACES[itype]['output_ports'])
+            io_block.instances[iname] = inst = _INSTANCE(iname, itype, io_block.input_ports, io_block.output_ports, {'op' : {'input', 'output'}})
+            for port in inst.input_ports:
+                pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
+                operand = _OPERAND_MAP[itype][port]
+                io_block.ports[pname] = _PORT(pname, 'in', 'out', operand)
+
+            for port in io_block.input_ports:
+                pname = f'PORT{_HACK_SEP}{iname}{_HACK_SEP}{port}'
+                assert pname in io_block.ports, (pname, io_block.ports)
+                iport = io_block.ports[pname].input_port
+                oport = io_block.ports[pname].output_port
+                io_block.ties[f'this.{port}'] = f'{pname}.{iport}'
+                io_block.ties[f'{pname}.{oport}'] = f'{iname}.{port}'
+
+            for port in io_block.output_ports:
+                io_block.ties[f'{iname}.{port}'] = f'this.{port}'
+
+            _verify_block(io_block)
+        else:
+            assert len(exterior.findall('block')) == 1
+            io_block = blocks[exterior.find('block').attrib['module']]
+
+
         irow = int(interior.attrib.get('row', 1))
         icol = int(interior.attrib.get('col', 1))
         iblocks = [blocks[x.attrib['module']] for x in interior.findall('block')]
