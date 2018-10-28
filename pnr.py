@@ -179,7 +179,7 @@ class PNR:
                 return lower < upper
         else:
             def check_cutoff(lower, upper):
-                return (upper - lower)/((upper + lower)/ 2) > cutoff
+                return (upper - lower)/upper > cutoff
 
 
         if incremental:
