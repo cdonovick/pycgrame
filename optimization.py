@@ -235,49 +235,56 @@ def smart_count(
                                 used.add(node)
     return len(used)
 
+@ft.lru_cache(maxsize=32)
+def _calc_dist(
+        node_filter : NodeFilter,
+        cgra : MRRG,
+        design : Design,
+        src_op_code : str, 
+        dst_op_code : str) -> int:
+    #basically dijkstras
+    best = float('inf')
+    for src_node in cgra.functional_units:
+        if src_op_code in src_node.ops:
+            q = PriorityQueue()
+            dist = {}
+            d = 1 if node_filter(src_node) else 0
+            q[src_node] = d
+            dist[src_node] = d
+
+            while q:
+                node, d = q.popitem()
+                if best <= d:
+                    break
+
+                for n in node.outputs.values():
+                    next_d = d + (1 if node_filter(node) else 0)
+                    if best <= next_d:
+                        continue
+                    if n == src_node:
+                        continue
+
+                    if n not in dist or next_d < dist[n]:
+                        dist[n] = next_d
+                        q[n] = next_d
+                        if isinstance(n, mrrg.FunctionalUnit):
+                            if dst_op_code in n.ops and next_d < best:
+                                best = next_d
+    assert best < float('inf')
+    return best
+
 @AutoPartial(1)
 def lower_bound_popcount(
         node_filter : NodeFilter,
         cgra : MRRG,
         design : Design,) -> int:
-    def _calc_dist(src_op_code : str, dst_op_codes : tp.AbstractSet[str]):
-        #basically dijkstras
-        best = float('inf')
-        for src_node in cgra.functional_units:
-            if src_op_code in src_node.ops:
-                q = PriorityQueue()
-                dist = {}
-                d = 1 if node_filter(src_node) else 0
-                q[src_node] = d
-                dist[src_node] = d
-
-                while q:
-                    node, d = q.popitem()
-                    if best <= d:
-                        break
-
-                    for n in node.outputs.values():
-                        next_d = d + (1 if node_filter(node) else 0)
-                        if best <= next_d:
-                            continue
-                        if n == src_node:
-                            continue
-
-                        if n not in dist or next_d < dist[n]:
-                            dist[n] = next_d
-                            q[n] = next_d
-                            if isinstance(n, mrrg.FunctionalUnit):
-                                if dst_op_codes | set(n.ops) and next_d < best:
-                                    best = next_d
-        assert best < float('inf')
-        return best
-
     s = 0
     dist_map = {}
     for val in design.values:
         src_op_code = val.src.opcode
         dst_op_codes = {op.opcode for op,_ in val.dsts}
-        s += _calc_dist(src_op_code, dst_op_codes)
+        dist = max(_calc_dist(node_filter, cgra, design, src_op_code, dop) for dop in dst_op_codes)
+        s += dist
     return s
 
 @AutoPartial(1, max_arg_len=30)
@@ -305,6 +312,9 @@ def limit_popcount_total(
         vars : Modeler,
         solver : Solver) -> Term:
     v = vars[node_filter]
+    if n is None:
+        return solver.BVUle(l, v)
+
     if n < 0 or n < l:
         assert 0
     elif n.bit_length() > v.sort.width or l.bit_length() > v.sort.width:
