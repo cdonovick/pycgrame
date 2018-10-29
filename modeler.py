@@ -53,21 +53,24 @@ class Modeler(Mapping):
 
 def _get_path(
         model : Model,
-        node : mrrg.Node,
+        src_node : mrrg.Node,
         value : design.Value,
-        dst : design.Operation,
+        dst : tp.Tuple[design.Operation, int],
         dst_node : mrrg.Node) -> tp.Iterable[mrrg.Node]:
-    yield node
-    if node != dst_node:
+    assert dst in value.dsts
+    path = []
+    node = dst_node
+    while node != src_node:
+        path.append(node)
         next = None
-        for n in node.outputs.values():
+        for n in node.inputs.values():
             if model[n, value, dst] == 1:
                 assert next is None
                 next = n
-        if next is None:
-            raise StopIteration()
-        yield from _get_path(model, next, value, dst, dst_node)
-
+        assert next is not None
+        node = next
+    path.append(src_node)
+    yield from reversed(path)
 
 def model_checker(cgra : mrrg.MRRG, design : design.Design, vars : Model) -> None:
     F_map = BiMultiDict()
