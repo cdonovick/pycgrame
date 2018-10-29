@@ -29,7 +29,7 @@ def _is_one_hot_or_0(var : Term, solver : Solver):
     return (var & (var - 1)) == solver.TheoryConst(var.sort, 0)
 
 def _is_one_hot(var : Term, solver : Solver) -> Term:
-    return solver.And(_is_one_hot_or_0(var, solver), var != solver.TheoryConst(var.sort, 0)) 
+    return solver.And(_is_one_hot_or_0(var, solver), var != solver.TheoryConst(var.sort, 0))
 
 def op_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
     ''' Assert all ops are placed exactly one time
@@ -94,9 +94,11 @@ def routing_resource_usage(cgra : MRRG, design : Design, vars : Modeler, solver 
     for node in cgra.all_nodes:
         for value in design.values:
             v = vars[node, value]
+            #v_ = ft.reduce(solver.BVOr, (vars[node, value, dst] for dst in value.dsts))
             for dst in value.dsts:
-                #node,value,dst => node,value
+                '''node,value,dst => node,value'''
                 c.append(solver.Or(vars[node, value, dst] == 0, v == 1))
+            #c.append(v == v_)
 
     return solver.And(c)
 

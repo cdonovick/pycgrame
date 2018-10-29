@@ -30,9 +30,15 @@ class PNR:
             solver_str : str,
             seed : int = 0,
             incremental : bool = False,
-            duplicate_const : bool = False):
+            duplicate_const : bool = False,
+            duplicate_all : bool = False,):
 
-        if duplicate_const:
+
+
+        if duplicate_all:
+            for op in design.operations:
+                op.allow_duplicate()
+        elif duplicate_const:
             for op in design.operations:
                 if op.opcode == 'const':
                     op.allow_duplicate()
@@ -209,6 +215,7 @@ class PNR:
 
         eval_func = optimizer.eval_func
         limit_func = optimizer.limit_func
+        lower_func = optimizer.lower_func
 
         if cutoff is None and not optimize_final:
             funcs = *init_funcs, *funcs
@@ -225,11 +232,14 @@ class PNR:
             lower = 0
             best = vars.save_model()
             upper = eval_func(cgra, design, best)
+            if check_cutoff(lower, upper) or optimize_final:
+                lower = lower_func(cgra, design)
             next = first_cut(lower, upper)
             attest_func(cgra, design, best)
             sat_cb()
 
             next_f = None
+
             if not check_cutoff(lower, upper) and optimize_final:
                 optimize_final = False
                 def check_cutoff(lower, upper):

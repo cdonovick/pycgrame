@@ -9,10 +9,12 @@ from design import Design, Operation
 from modeler import Modeler, Model, _get_path
 from constraints import ConstraintGeneratorType
 from smt_switch_types import Solver, Term, Sort
+from util.data_structures.priority_queue import PriorityQueue
 from util import BiDict, BiMultiDict
 from util import AutoPartial
 
 EvalType = tp.Callable[[MRRG, Design, Model], int]
+LowerBoundType = tp.Callable[[MRRG, Design], int]
 OptGeneratorType = tp.Callable[[int, int], ConstraintGeneratorType]
 NodeFilter = tp.Callable[[Node], bool]
 
@@ -22,17 +24,20 @@ WrappedType = tp.Callable[[NodeFilter], T]
 class Optimizer:
     init_func  : ConstraintGeneratorType
     eval_func  : EvalType
+    lower_func : LowerBoundType
     limit_func : OptGeneratorType
 
     def __init__(self,
             node_filter   : NodeFilter,
             init_wrapper  : WrappedType[ConstraintGeneratorType],
             eval_wrapper  : WrappedType[EvalType],
+            lower_wrapper : WrappedType[LowerBoundType],
             limit_wrapper : WrappedType[OptGeneratorType],
             ):
 
         self.init_func  = init_wrapper(node_filter)
         self.eval_func  = eval_wrapper(node_filter)
+        self.lower_func = lower_wrapper(node_filter)
         self.limit_func = limit_wrapper(node_filter)
 
 
@@ -229,6 +234,51 @@ def smart_count(
                             if node_filter(node):
                                 used.add(node)
     return len(used)
+
+@AutoPartial(1)
+def lower_bound_popcount(
+        node_filter : NodeFilter,
+        cgra : MRRG,
+        design : Design,) -> int:
+    def _calc_dist(src_op_code : str, dst_op_codes : tp.AbstractSet[str]):
+        #basically dijkstras
+        best = float('inf')
+        for src_node in cgra.functional_units:
+            if src_op_code in src_node.ops:
+                q = PriorityQueue()
+                dist = {}
+                d = 1 if node_filter(src_node) else 0
+                q[src_node] = d
+                dist[src_node] = d
+
+                while q:
+                    node, d = q.popitem()
+                    if best <= d:
+                        break
+
+                    for n in node.outputs.values():
+                        next_d = d + (1 if node_filter(node) else 0)
+                        if best <= next_d:
+                            continue
+                        if n == src_node:
+                            continue
+
+                        if n not in dist or next_d < dist[n]:
+                            dist[n] = next_d
+                            q[n] = next_d
+                            if isinstance(n, mrrg.FunctionalUnit):
+                                if dst_op_codes | set(n.ops) and next_d < best:
+                                    best = next_d
+        assert best < float('inf')
+        return best
+
+    s = 0
+    dist_map = {}
+    for val in design.values:
+        src_op_code = val.src.opcode
+        dst_op_codes = {op.opcode for op,_ in val.dsts}
+        s += _calc_dist(src_op_code, dst_op_codes)
+    return s
 
 @AutoPartial(1, max_arg_len=30)
 def freaze_fus(

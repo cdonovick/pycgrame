@@ -28,9 +28,9 @@ DESIGNS = [
     './designs/linalg/mcm2x2.dot',
 ]
 
-CONTEXTS = [
-    1,
-    2,
+CONTEXTS_OPTIMIZERS = [
+    (1, 'BIT_HACK_MUX'),
+    (2, 'BIT_HACK_M/R'),
 ]
 
 OPTIMIZERS = {
@@ -38,37 +38,32 @@ OPTIMIZERS = {
     'BIT_HACK_MUX' : optimization.Optimizer(optimization.mux_filter,
                         optimization.init_popcount_bithack,
                         optimization.smart_count,
+                        optimization.lower_bound_popcount,
                         optimization.limit_popcount_total),
 
     'BIT_HACK_M/R' : optimization.Optimizer(optimization.mux_reg_filter,
                         optimization.init_popcount_bithack,
                         optimization.smart_count,
+                        optimization.lower_bound_popcount,
                         optimization.limit_popcount_total),
 }
 
-DUPLICATE = [
-    False,
-    True,
-]
-
 CONFIG_MATS = [
     {
-        'incremental' : [False],
+        'incremental' : [False, True],
+        'duplicate' : [None, 'duplicate_const',], #'duplicate_all',], duplicate all seems to break things not sure why
         'cutoff' : [None],
         'optimize_final' : [False, True],
     },
     {
         'incremental' : [True],
-        'cutoff' : [None],
-        'optimize_final' : [True],
-    },
-    {
-        'incremental' : [True],
+        'duplicate' : [None],
         'cutoff' : [0.0],
         'optimize_final' : [False],
     },
     {
         'incremental' : [True],
+        'duplicate' : [None],
         'cutoff' : [0.2, 0.5],
         'optimize_final' : [False, True],
     },
@@ -95,20 +90,22 @@ funcs = (
 
 if __name__ == '__main__':
     for fabric_file in FABRICS:
-        for contexts in CONTEXTS:
+        for contexts,optimizer_name in CONTEXTS_OPTIMIZERS:
             for design_file in DESIGNS:
                 for config_mat in CONFIG_MATS:
                     for incremental in config_mat['incremental']:
                         for cutoff in config_mat['cutoff']:
                             for optimize_final in config_mat['optimize_final']:
-                                for optimizer_name in OPTIMIZERS:
-                                    s = f'python3 -W ignore run_test.py {fabric_file} {contexts} {design_file} {optimizer_name}'
+                                for dupe in config_mat['duplicate']:
+                                    s = f'PYTHONHASHSEED=0 python3 -W ignore run_test.py {fabric_file} {contexts} {design_file} {optimizer_name}'
                                     if cutoff is not None:
                                         s += f' --cutoff {cutoff}'
                                     if optimize_final:
                                         s += ' --optimize_final'
                                     if incremental:
                                         s += ' --incremental'
+                                    if dupe is not None:
+                                        s += f' --{dupe}'
 
                                     print(s)
 

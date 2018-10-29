@@ -22,7 +22,8 @@ parser.add_argument('optimizer_name')
 parser.add_argument('--cutoff', type=float, default=None)
 parser.add_argument('--optimize_final', action='store_true', default=False)
 parser.add_argument('--incremental', action='store_true', default=False)
-parser.add_argument('--duplicate', action='store_true', default=False)
+parser.add_argument('--duplicate_const', action='store_true', default=False)
+parser.add_argument('--duplicate_all', action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -38,7 +39,8 @@ optimizer_name = args.optimizer_name
 cutoff = args.cutoff
 optimize_final = args.optimize_final
 incremental = args.incremental
-duplicate = args.duplicate
+duplicate_const = args.duplicate_const
+duplicate_all = args.duplicate_all
 
 optimizer = tester.OPTIMIZERS[optimizer_name]
 solver = tester.SOLVER
@@ -48,7 +50,7 @@ mods, ties = dotparse.dot2graph(design_file)
 design = Design(mods, ties)
 cgra = adlparse(fabric_file)
 mrrg = MRRG(cgra, contexts=contexts)
-pnr = PNR(mrrg, design, solver, incremental=incremental, duplicate_const=duplicate)
+pnr = PNR(mrrg, design, solver, incremental=incremental, duplicate_const=duplicate_const, duplicate_all=duplicate_all)
 
 full_timer.start()
 result = pnr.optimize_design(
@@ -66,15 +68,18 @@ result = pnr.optimize_design(
 full_timer.stop()
 
 print(json.dumps({
-    'params' : {
+    'benchmark' : {
         'fabric' : fabric_file,
         'contexts' : contexts,
         'design' : design_file,
+    },
+    'params' : {
         'incremental' : incremental,
         'cutoff' : cutoff,
         'optimize_final' : optimize_final,
         'optimizer' : optimizer_name,
-        'duplicate' : duplicate,
+        'duplicate_const' : duplicate_const,
+        'duplicate_all' : duplicate_all,
         'solver' : solver,
     },
     'results' : {
@@ -82,10 +87,10 @@ print(json.dumps({
         'lower' : result[1],
         'upper' : result[2],
         'total_time' : full_timer.total,
-        'solve_time_total' : solve_timer.total,
         'build_time_total' : build_timer.total,
-        'solve_times' : tuple(solve_timer.times),
+        'solve_time_total' : solve_timer.total,
         'build_times' : tuple(build_timer.times),
+        'solve_times' : tuple(solve_timer.times),
     },
 }))
 

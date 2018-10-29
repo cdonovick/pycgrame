@@ -7,7 +7,7 @@ class Value(IDObject):
        Holds a collection of ties that make up a net.
     '''
     _src  : tp.Optional['Operation']
-    _dsts : tp.AbstractSet['Operation']
+    _dsts : tp.AbstractSet[tp.Tuple['Operation', int]]
 
     def __init__(self, src, dsts=()):
         super().__init__()
@@ -24,7 +24,7 @@ class Value(IDObject):
         return self._src
 
     @property
-    def dsts(self) -> tp.AbstractSet['Operation']:
+    def dsts(self) -> tp.AbstractSet[tp.Tuple['Operation', int]]:
         return self._dsts
 
     def __repr__(self) -> str:

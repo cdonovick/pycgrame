@@ -75,6 +75,7 @@ if args.optimize:
             optimization.init_popcount_bithack,
 #            optimization.init_popcount_concat,
             optimization.smart_count,
+            optimization.lower_bound_popcount,
             optimization.limit_popcount_total)
     sat = pnr.optimize_design(
             optimizer,
