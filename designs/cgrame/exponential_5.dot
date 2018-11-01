@@ -1,0 +1,81 @@
+digraph exponential_5 {
+
+
+//const1 = 1
+//const2 = 1/2!
+//const3 = 1/3!
+//const4 = 1/4!
+
+x[opcode=load];
+const1[opcode=const];
+const2[opcode=const];
+const3[opcode=const];
+const4[opcode=const];
+output0[opcode=store];
+
+
+mul0[opcode=mul];
+mul1[opcode=mul];
+mul2[opcode=mul];
+mul3[opcode=mul];
+mul4[opcode=mul];
+mul5[opcode=mul];
+mul6[opcode=mul];
+mul7[opcode=mul];
+mul8[opcode=mul];
+
+add0[opcode=add];
+add1[opcode=add];
+add2[opcode=add];
+add3[opcode=add];
+
+//first layer
+x->mul0[operand=0];
+x->mul0[operand=1];
+
+x->mul1[operand=0];
+x->mul1[operand=1];
+x->mul2[operand=0];
+x->mul2[operand=1];
+
+x->add0[operand=0];
+const1->add0[operand=1];
+
+//second layer
+x->mul3[operand=0];
+mul0->mul3[operand=1];
+
+x->mul4[operand=0];
+mul1->mul4[operand=1];
+
+const2->mul5[operand=0];
+mul2->mul5[operand=1];
+
+//third layer
+mul3->mul6[operand=0];
+x->mul6[operand=1];
+
+mul4->mul7[operand=0];
+const3->mul7[operand=1];
+
+mul5->add1[operand=0];
+add0->add1[operand=1];
+
+//fourth layer
+const4->mul8[operand=0];
+mul6->mul8[operand=1];
+
+mul7->add2[operand=0];
+add1->add2[operand=1];
+
+mul8->add3[operand=0];
+add2->add3[operand=1];
+
+add3->output0[operand=0];
+
+
+
+
+
+
+}

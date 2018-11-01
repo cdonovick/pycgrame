@@ -1,0 +1,55 @@
+digraph exponential_4 {
+
+
+//const1 = 1
+//const2 = 1/2!
+//const3 = 1/3!
+
+x[opcode=load];
+const1[opcode=const];
+const2[opcode=const];
+const3[opcode=const];
+output0[opcode=store];
+
+mul0[opcode=mul];
+mul1[opcode=mul];
+mul2[opcode=mul];
+mul3[opcode=mul];
+mul4[opcode=mul];
+
+
+add0[opcode=add];
+add1[opcode=add];
+add2[opcode=add];
+
+x->mul0[operand=0];
+x->mul0[operand=1];
+
+x->mul1[operand=0];
+x->mul1[operand=1];
+
+const1->add0[operand=0];
+x->add0[operand=1];
+
+//second layer
+x->mul2[operand=0];
+mul0->mul2[operand=1];
+
+mul1->mul3[operand=0];
+const2->mul3[operand=1];
+
+//third layer
+mul2->mul4[operand=0];
+const3->mul4[operand=1];
+
+mul3->add1[operand=0];
+add0->add1[operand=1];
+
+//fourth layer
+mul4->add2[operand=0];
+add1->add2[operand=1];
+
+add2->output0[operand=0];
+
+
+}

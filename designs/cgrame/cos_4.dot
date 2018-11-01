@@ -1,0 +1,88 @@
+digraph g {
+
+//const1 = 1
+//const2 = 1/2!
+//const3 = 1/4!
+//const4 = 1/6!
+
+
+x[opcode=load];
+const1[opcode=const];
+const2[opcode=const];
+const3[opcode=const];
+const4[opcode=const];
+output0[opcode=store];
+
+mul0[opcode=mul];
+mul1[opcode=mul];
+mul2[opcode=mul];
+mul3[opcode=mul];
+mul4[opcode=mul];
+mul5[opcode=mul];
+mul6[opcode=mul];
+mul7[opcode=mul];
+mul8[opcode=mul];
+mul9[opcode=mul];
+mul10[opcode=mul];
+mul11[opcode=mul];
+
+sub0[opcode=sub];
+sub1[opcode=sub];
+
+add0[opcode=add];
+
+//first layer
+x->mul0[operand=0];
+x->mul0[operand=1];
+
+x->mul1[operand=0];
+x->mul1[operand=1];
+
+x->mul2[operand=0];
+x->mul2[operand=1];
+
+//second layer 
+mul0->mul3[operand=0];
+const2->mul3[operand=1];
+
+mul1->mul4[operand=0];
+x->mul4[operand=1];
+
+mul2->mul5[operand=0];
+x->mul5[operand=1];
+
+//third layer
+const1->sub0[operand=0];
+mul3->sub0[operand=1];
+
+x->mul6[operand=0];
+mul4->mul6[operand=1];
+
+x->mul7[operand=0];
+mul5->mul7[operand=1];
+
+//fourth layer
+mul6->mul8[operand=0];
+const3->mul8[operand=1];
+
+mul7->mul9[operand=0];
+x->mul9[operand=1];
+
+//fifth layer
+sub0->add0[operand=0];
+mul8->add0[operand=1];
+
+x->mul10[operand=0];
+mul9->mul10[operand=1];
+
+mul10->mul11[operand=0];
+const4->mul11[operand=1];
+
+add0->sub1[operand=0];
+mul11->sub1[operand=1];
+
+
+sub1->output0[operand=0];
+
+}
+
