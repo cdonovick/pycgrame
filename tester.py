@@ -16,22 +16,27 @@ FABRICS = [
 ]
 
 DESIGNS = [
-#    './designs/linalg/vv3x3.dot',
-#    './designs/linalg/vcv3x3.dot',
-#    './designs/linalg/vv4x4.dot',
-#    './designs/linalg/vcv4x4.dot',
-#    './designs/linalg/vm2x2.dot',
-#    './designs/linalg/vcm2x2.dot',
-#    './designs/linalg/vm3x3.dot',
-#    './designs/linalg/vcm3x3.dot',
-#    './designs/linalg/mm2x2.dot',
-#    './designs/linalg/mcm2x2.dot',
+    './designs/linalg/vv3x3.dot',
+    './designs/linalg/vcv3x3.dot',
+    './designs/linalg/vv4x4.dot',
+    './designs/linalg/vcv4x4.dot',
+    './designs/linalg/vm2x2.dot',
+    './designs/linalg/vcm2x2.dot',
+    './designs/linalg/vm3x3.dot',
+    './designs/linalg/vcm3x3.dot',
+    './designs/linalg/mm2x2.dot',
+    './designs/linalg/mcm2x2.dot',
 
+    './designs/cgrame/add_10.dot',
+    './designs/cgrame/add_14.dot',
     './designs/cgrame/add_16.dot',
     './designs/cgrame/cos_4.dot',
     './designs/cgrame/cosh_4.dot',
     './designs/cgrame/exponential_4.dot',
+    './designs/cgrame/exponential_5.dot',
     './designs/cgrame/exponential_6.dot',
+    './designs/cgrame/multiply_10.dot',
+    './designs/cgrame/multiply_14.dot',
     './designs/cgrame/multiply_16.dot',
     './designs/cgrame/sinh_4.dot',
     './designs/cgrame/taylor_series_4.dot',
@@ -39,13 +44,8 @@ DESIGNS = [
     './designs/cgrame/weighted_sum.dot', #vv8x8
 ]
 # Excluded
-#    './designs/cgrame/add_10.dot',
-#    './designs/cgrame/add_14.dot',
 #    './designs/cgrame/corner_case_2x2_fail.dot',
 #    './designs/cgrame/corner_case_2x2_pass.dot',
-#    './designs/cgrame/exponential_5.dot',
-#    './designs/cgrame/multiply_10.dot',
-#    './designs/cgrame/multiply_14.dot',
 
 CONTEXTS_OPTIMIZERS = [
     (1, 'BIT_HACK_MUX'),
