@@ -6,7 +6,7 @@ class Value(IDObject):
     '''
        Holds a collection of ties that make up a net.
     '''
-    _src  : tp.Optional['Operation']
+    _src  : 'Operation'
     _dsts : tp.AbstractSet[tp.Tuple['Operation', int]]
 
     def __init__(self, src, dsts=()):
@@ -20,7 +20,7 @@ class Value(IDObject):
             dst._add_input(dst_port, self)
 
     @property
-    def src(self) -> tp.Optional['Operation']:
+    def src(self) -> 'Operation':
         return self._src
 
     @property
