@@ -94,11 +94,8 @@ def routing_resource_usage(cgra : MRRG, design : Design, vars : Modeler, solver 
     for node in cgra.all_nodes:
         for value in design.values:
             v = vars[node, value]
-            #v_ = ft.reduce(solver.BVOr, (vars[node, value, dst] for dst in value.dsts))
-            for dst in value.dsts:
-                '''node,value,dst => node,value'''
-                c.append(solver.Or(vars[node, value, dst] == 0, v == 1))
-            #c.append(v == v_)
+            v_ = ft.reduce(solver.BVOr, (vars[node, value, dst] for dst in value.dsts))
+            c.append(v == v_)
 
     return solver.And(c)
 
@@ -108,17 +105,16 @@ def init_value(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) ->
     '''
     c = []
     for pe in cgra.functional_units:
-        for op in design.operations:
-            value = op.output
-            if value is not None:
-                v = vars[pe, op]
-                if op.duplicate:
-                    v_ = ft.reduce(solver.BVOr, (vars[pe, value, dst] for dst in value.dsts))
+        for value in design.values:
+            src = value.src
+            v = vars[pe, src]
+            if src.duplicate:
+                v_ = vars[pe, value]
+                c.append(v == v_)
+            else:
+                for dst in value.dsts:
+                    v_ = vars[pe, value, dst]
                     c.append(v == v_)
-                else:
-                    for dst in value.dsts:
-                        v_ = vars[pe, value, dst]
-                        c.append(v == v_)
 
     return solver.And(c)
 
@@ -128,15 +124,14 @@ def port_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver
     '''
     c = []
     for pe in cgra.functional_units:
-        for op in design.operations:
-            if op.opcode not in pe.ops:
-                continue
-            v = vars[pe, op]
-            for operand, value in op.inputs.items():
-                node = pe.operands[operand]
-                dst = (op, operand)
-                assert dst in value.dsts, (dst, value.dsts)
-                v_ = vars[node, value, dst]
+        for value in design.values:
+            for dst in value.dsts:
+                op, operand = dst
+                if op.opcode not in pe.ops:
+                    continue
+                port = pe.operands[operand]
+                v = vars[pe, op]
+                v_ = vars[port, value, dst]
                 c.append(v == v_)
 
     return solver.And(c)

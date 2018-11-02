@@ -67,7 +67,8 @@ def _get_path(
             if model[n, value, dst] == 1:
                 assert next is None
                 next = n
-        assert next is not None
+        if next is None:
+            return
         node = next
     path.append(src_node)
     yield from reversed(path)

@@ -63,6 +63,7 @@ result = pnr.optimize_design(
         solve_timer=solve_timer,
         return_bounds=True,
         optimize_final=optimize_final,
+#        attest_func=modeler.model_checker,
         )
 
 full_timer.stop()
