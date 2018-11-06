@@ -418,6 +418,8 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                             dst_inst, dst_port = dst_args
                             if dst_inst == 'this':
                                 this_block.ties[f'{mname}.{this_block.muxes[mname].output_port}'] = dst
+                            elif this_block.instances[dst_inst].type_ == 'Register':
+                                this_block.ties[f'{mname}.{this_block.muxes[mname].output_port}'] = dst
                             elif dst_inst in this_block.instances:
                                 pname = f'PORT{_HACK_SEP}{dst_inst}{_HACK_SEP}{dst_port}'
                                 if pname not in this_block.ports:
@@ -438,7 +440,7 @@ def adlparse(file_name : str, *, rewrite_name=None) -> _CGRA:
                     else:
                         dst_inst, dst_port = dst.split('.')
 
-                        if dst_inst in this_block.instances:
+                        if dst_inst in this_block.instances and this_block.instances[dst_inst].type_ != 'Register':
                             pname = f'PORT{_HACK_SEP}{dst_inst}{_HACK_SEP}{dst_port}'
                             assert pname not in this_block.ports
                             operand = _OPERAND_MAP[this_block.instances[dst_inst].type_][dst_port]
