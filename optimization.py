@@ -26,6 +26,7 @@ class Optimizer:
     eval_func  : EvalType
     lower_func : LowerBoundType
     limit_func : OptGeneratorType
+    node_filter   : NodeFilter
 
     def __init__(self,
             node_filter   : NodeFilter,
@@ -39,6 +40,7 @@ class Optimizer:
         self.eval_func  = eval_wrapper(node_filter)
         self.lower_func = lower_wrapper(node_filter)
         self.limit_func = limit_wrapper(node_filter)
+        self.node_filter = node_filter
 
 
 @AutoPartial(1)

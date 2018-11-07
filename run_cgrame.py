@@ -78,6 +78,7 @@ if args.optimize:
             optimization.lower_bound_popcount,
             optimization.limit_popcount_total)
     sat = pnr.optimize_design(
+#    sat = pnr.optimize_enum(
             optimizer,
             init,
             funcs,

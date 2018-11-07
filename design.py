@@ -38,16 +38,16 @@ class Operation(NamedIDObject):
 
     def __init__(self, name : str, opcode :str):
         super().__init__(name)
-        self._inputs = BiMultiDict()  # port <-> value
+        self._inputs = dict()  # port <-> value
         self._output = None
         self._opcode = opcode
         self._duplicate = False
 
     @property
-    def inputs(self) -> MapView[str, Value]:
+    def inputs(self) -> MapView[int, Value]:
         return MapView(self._inputs)
 
-    def _add_input(self, port : str, val : Value) -> None:
+    def _add_input(self, port : int, val : Value) -> None:
         assert port not in self.inputs, '\n%s\n%s\n%s\n' % (self, port, val)
         self._inputs[port] = val
 

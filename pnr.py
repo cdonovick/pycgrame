@@ -6,6 +6,7 @@ from smt_switch import smt
 from modeler import Modeler
 from design import Design
 from mrrg import MRRG
+import mrrg
 import smt_switch_types
 from constraints import ConstraintGeneratorType
 from modeler import Model, ModelReader
@@ -130,6 +131,161 @@ class PNR:
             solve_timer : tp.Optional[Timer] = None,
             ) -> bool:
         pass
+
+    def optimize_enum(self,
+            optimizer : optimization.Optimizer,
+            init_funcs : ConstraintGeneratorList,
+            funcs : ConstraintGeneratorList,
+            verbose : bool = False,
+            attest_func : tp.Optional[ModelReader] = None,
+            build_timer : tp.Optional[Timer] = None,
+            solve_timer : tp.Optional[Timer] = None,
+            cutoff : tp.Optional[float] = None,
+            return_bounds : bool = False,
+            max_sol : int = 5000,
+            ) -> bool:
+        if not verbose:
+            log = lambda *args, **kwargs :  None
+        else:
+            log = ft.partial(print, sep='', flush=True)
+
+        if not self._check_pigeons():
+            log('Infeasible: too many pigeons')
+            if return_bounds:
+                return (False, None, None)
+            else:
+                return False
+
+        solver = self._solver
+        vars = self._vars
+        cgra = self.cgra
+        design = self.design
+        args = cgra, design, vars, solver
+        incremental = self._incremental
+
+
+        if attest_func is None:
+            attest_func : ModelReader = lambda *args : True
+
+        if build_timer is None:
+            build_timer = NullTimer()
+
+        if solve_timer is None:
+            solve_timer = NullTimer()
+
+        if cutoff is None:
+            def check_cutoff(lower, upper):
+                return False
+        elif cutoff == 0:
+            def check_cutoff(lower, upper):
+                return lower < upper
+        else:
+            def check_cutoff(lower, upper):
+                return (upper - lower)/upper > cutoff
+
+
+        if incremental:
+            sat_cb = lambda : None
+        else:
+            sat_cb = self._reset
+
+        def apply(*funcs : ConstraintGeneratorType):
+            if not funcs:
+                return
+            log('Building constraints:')
+            build_timer.start()
+            for f in funcs:
+                log('  ', f.__qualname__, end='... ')
+                solver.Assert(f(*args))
+                log('done')
+
+            build_timer.stop()
+            log('---\n')
+
+        def do_checksat():
+            solve_timer.start()
+            s = solver.CheckSat()
+            solve_timer.stop()
+            return s
+
+        def not_this(model : Model, vars : Modeler) -> int:
+            build_timer.start()
+            solver = vars._solver
+            kx = []
+            tx = []
+            for k,v in model.items():
+                n = k[0]
+                if v == 1 and len(k) == 2 and optimizer.node_filter(n):
+                    kx.append(k)
+            assert kx
+            c = []
+            t = ft.reduce(solver.BVAnd, (vars[k] for k in kx))
+            solver.Assert(t==0)
+            build_timer.stop()
+
+        eval_func = optimizer.eval_func
+        lower_func = optimizer.lower_func
+
+        if cutoff is None:
+            funcs = *init_funcs, *funcs
+        else:
+            funcs = *init_funcs, *funcs
+
+
+        apply(*funcs)
+
+        if incremental:
+            funcs = ()
+
+        if do_checksat():
+            init_time = solve_timer.total + build_timer.total
+            print(init_time)
+            lower = 0
+            sol = 1
+            best = m = vars.save_model()
+            upper = eval_func(cgra, design, best)
+            if check_cutoff(lower, upper):
+                lower = lower_func(cgra, design)
+
+            attest_func(cgra, design, best)
+
+            log(f'bounds: [{lower}, {upper}])')
+
+            while check_cutoff(lower, upper) \
+                and solve_timer.times[-1] + build_timer.times[-1] <= init_time \
+                and solve_timer.total + build_timer.total < init_time * 100:
+                apply(*funcs)
+                not_this(m, vars)
+
+                if do_checksat():
+                    m = vars.save_model()
+                    e = eval_func(cgra, design, m)
+                    if upper > e:
+                        log(f'\nnew model eval: {e}')
+                        upper = e
+                        best = m
+                    elif upper == e:
+                        log('=', end='')
+                    else:
+                        log('+', end='')
+
+                    sol += 1
+                else:
+                    log('solutions exhausted')
+                    break
+
+
+            self._model = best
+            log(f'optimal found: {upper}')
+            if return_bounds:
+                return (True, lower, upper)
+            else:
+                return True
+        else:
+            if return_bounds:
+                return (False, None, None)
+            else:
+                return False
 
     def optimize_design(self,
             optimizer : optimization.Optimizer,
