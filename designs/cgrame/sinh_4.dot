@@ -11,7 +11,7 @@ x[opcode=load];
 constant1[opcode=const];
 constant2[opcode=const];
 constant3[opcode=const];
-output0[output=store];
+output0[opcode=store];
 
 
 mul0[opcode=mul];
