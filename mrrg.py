@@ -144,19 +144,19 @@ class MRRG:
             for loc, block in cgra.blocks.items():
                 for inst in block.instances.values():
                     idx = i, loc, inst
-                    name = f'{inst.type_}_{inst.name}_{loc[0]}_{loc[1]}'
+                    name = f'{inst.type_}_{inst.name}_{i}_{loc[0]}_{loc[1]}'
                     if inst.type_ == 'Register':
                         all[idx] = route[idx] = reg[idx] = Register(name, inst.input_ports, inst.output_ports)
                     else:
                         all[idx] = fu[idx] = FunctionalUnit(name, inst.input_ports, inst.output_ports, **inst.args)
 
                 for inst in block.muxes.values():
-                    name = f'Mux_{inst.name}_{loc[0]}_{loc[1]}'
+                    name = f'Mux_{inst.name}_{i}_{loc[0]}_{loc[1]}'
                     idx = i, loc, inst
                     all[idx] = route[idx] = mux[idx] = Mux(name, inst.input_ports, inst.output_ports)
 
                 for inst in block.ports.values():
-                    name = f'Port_{inst.name}_{loc[0]}_{loc[1]}'
+                    name = f'Port_{inst.name}_{i}_{loc[0]}_{loc[1]}'
                     idx = i, loc, inst
                     all[idx] = route[idx] = FU_Port(name, inst.input_ports, inst.output_ports, inst.operand)
 
