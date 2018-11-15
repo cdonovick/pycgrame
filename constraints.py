@@ -66,6 +66,9 @@ def pe_legality(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -
         for op in design.operations:
             if op.opcode not in pe.ops:
                 c.append(vars[pe, op] == 0)
+                # solver.Assert(c[-1])
+                # if not solver.CheckSat():
+                #     print("bad pair restriction was on {}".format((pe, op)))
     return solver.And(c)
 
 def route_exclusivity(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
@@ -179,18 +182,22 @@ def output_connectivity(cgra : MRRG, design : Design, vars : Modeler, solver : S
 
 def fix_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
     '''
-    Hack to fix a placement
+    Hack to fix a placement, hardcoding desired placement because just debugging
     '''
     desired_placement = {'x': (5, 2),
                          'add0': (2, 2),
                          'add1': (1, 2),
-                         'add2': (1, 4),
+                         'add2': (1, 3),
                          'mul0': (4, 3),
                          'mul1': (2, 1),
                          'mul2': (3, 3),
                          'mul3': (1, 1),
                          'mul4': (2, 3),
                          'output0': (0, 3)}
+    keys = set(desired_placement.keys())
+    vals = set(desired_placement.values())
+    # Not fixing constants, so this should hold
+    assert len(keys) == len(vals), "Expecting all different placements"
     grid = {}
     for pe in cgra.functional_units:
         row, col = map(int, pe.name.split('_')[-2:])

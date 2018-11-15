@@ -54,14 +54,14 @@ init  = (
 funcs = (
         constraints.op_placement,
         constraints.pe_exclusivity,
-        constraints.pe_legality,
+#        constraints.pe_legality,
         constraints.route_exclusivity,
         constraints.init_value,
         constraints.port_placement,
         constraints.input_connectivity,
         constraints.output_connectivity,
         constraints.routing_resource_usage,
-        constraints.fix_placement
+#        constraints.fix_placement
     )
 
 if args.optimize:
@@ -125,7 +125,8 @@ else:
         print(f'Solving took {solver_end - solver_start} seconds', flush=True)
 
     if sat:
-        pnr.attest_design(modeler.model_checker, verbose=verbose)
+        # remove model checker for now, it's too slow for debugging
+#        pnr.attest_design(modeler.model_checker, verbose=verbose)
         print('SAT')
         if verbose:
             pnr.attest_design(modeler.model_info, verbose=verbose)
