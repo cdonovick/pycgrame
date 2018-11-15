@@ -177,4 +177,28 @@ def output_connectivity(cgra : MRRG, design : Design, vars : Modeler, solver : S
 
     return solver.And(c)
 
+def fix_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
+    '''
+    Hack to fix a placement
+    '''
+    desired_placement = {'x': (5, 2),
+                         'add0': (2, 2),
+                         'add1': (1, 2),
+                         'add2': (1, 4),
+                         'mul0': (4, 3),
+                         'mul1': (2, 1),
+                         'mul2': (3, 3),
+                         'mul3': (1, 1),
+                         'mul4': (2, 3),
+                         'output0': (0, 3)}
+    grid = {}
+    for pe in cgra.functional_units:
+        row, col = map(int, pe.name.split('_')[-2:])
+        grid[(row, col)] = pe
 
+    c = []
+    for op in design.operations:
+        if op.name in desired_placement:
+            c.append(vars[grid[desired_placement[op.name]], op] == solver.TheoryConst(solver.BitVec(1), 1))
+
+    return solver.And(c)

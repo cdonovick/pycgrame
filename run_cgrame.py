@@ -61,6 +61,7 @@ funcs = (
         constraints.input_connectivity,
         constraints.output_connectivity,
         constraints.routing_resource_usage,
+        constraints.fix_placement
     )
 
 if args.optimize:
