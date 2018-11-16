@@ -18,6 +18,7 @@ parser.add_argument('--rewrite-fabric', default=None, dest='rewrite_name')
 parser.add_argument('--optimize', '-o', action='store_true', default=False)
 parser.add_argument('--incremental', '-i', action='store_true', default=False)
 parser.add_argument('--cutoff', type=float, default=None)
+parser.add_argument('--no-tie-nodes', action='store_true', default=False, dest='ntiesnodes')
 
 
 args = parser.parse_args()
@@ -38,7 +39,7 @@ from util import Timer
 mods, ties = dotparse.dot2graph(design_file)
 design = Design(mods, ties)
 cgra = adlparse(fabric_file, rewrite_name=args.rewrite_name)
-mrrg = MRRG(cgra, contexts=args.contexts)
+mrrg = MRRG(cgra, contexts=args.contexts, add_tie_nodes=not args.ntiesnodes)
 pnr = PNR(mrrg, design, args.solver, args.seed, args.incremental)
 
 if args.parse_only:

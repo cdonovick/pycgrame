@@ -24,6 +24,7 @@ parser.add_argument('--optimize_final', action='store_true', default=False)
 parser.add_argument('--incremental', action='store_true', default=False)
 parser.add_argument('--duplicate_const', action='store_true', default=False)
 parser.add_argument('--duplicate_all', action='store_true', default=False)
+parser.add_argument('--no-tie-nodes', action='store_true', default=False, dest='ntiesnodes')
 
 args = parser.parse_args()
 
@@ -49,7 +50,8 @@ solver = tester.SOLVER
 mods, ties = dotparse.dot2graph(design_file)
 design = Design(mods, ties)
 cgra = adlparse(fabric_file)
-mrrg = MRRG(cgra, contexts=contexts)
+mrrg = MRRG(cgra, contexts=contexts, add_tie_nodes=not args.ntiesnodes)
+
 pnr = PNR(mrrg, design, solver, incremental=incremental, duplicate_const=duplicate_const, duplicate_all=duplicate_all)
 
 full_timer.start()

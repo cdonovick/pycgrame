@@ -131,7 +131,7 @@ def unwire(src : Node, src_port : str, dst : Node, dst_port : str):
 
 
 class MRRG:
-    def __init__(self, cgra, *, contexts=1):
+    def __init__(self, cgra, *, contexts=1, add_tie_nodes=True):
         all = dict()
         route = dict()
         fu = dict()
@@ -169,24 +169,30 @@ class MRRG:
                 src = all[i, src_loc, src_inst]
                 if isinstance(src, Register):
                     dst = all[(i+1)%contexts, dst_loc, dst_inst]
+                elif add_tie_nodes and isinstance(src, Mux):
+                    dst = all[i, dst_loc, dst_inst]
+                    tie_node = _LineNode(src.name + dst.name, {dst_port,}, {src_port,})
+                    all[tie_node] = route[tie_node] = tie_node
+                    wire(src, src_port, tie_node, dst_port)
+                    src = tie_node
                 else:
                     dst = all[i, dst_loc, dst_inst]
 
+
                 wire(src, src_port, dst, dst_port)
 
-        self._route = route
-        self._all = all
-        self._fu = fu
+        self._route = frozenset(route.values())
+        self._all = frozenset(all.values())
+        self._fu = frozenset(fu.values())
 
     @property
-    def functional_units(self) -> tp.ValuesView[FunctionalUnit]:
-        return self._fu.values()
+    def functional_units(self) -> tp.FrozenSet[FunctionalUnit]:
+        return self._fu
 
     @property
-    def routing_nodes(self) -> tp.ValuesView[tp.Union[Mux, Register, FU_Port]]:
-        return self._route.values()
+    def routing_nodes(self) -> tp.FrozenSet[tp.Union[Mux, Register, FU_Port]]:
+        return self._route
 
     @property
-    def all_nodes(self) -> tp.ValuesView[Node]:
-        return self._all.values()
-
+    def all_nodes(self) -> tp.FrozenSet[Node]:
+        return self._all

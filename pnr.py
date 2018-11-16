@@ -367,6 +367,10 @@ class PNR:
             solve_timer.start()
             s = solver.CheckSat()
             solve_timer.stop()
+            if s:
+                log('sat')
+            else:
+                log('unsat')
             return s
 
         eval_func = optimizer.eval_func
