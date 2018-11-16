@@ -169,15 +169,14 @@ class MRRG:
                 src = all[i, src_loc, src_inst]
                 if isinstance(src, Register):
                     dst = all[(i+1)%contexts, dst_loc, dst_inst]
-                elif add_tie_nodes and isinstance(src, Mux):
+                else:
                     dst = all[i, dst_loc, dst_inst]
+
+                if add_tie_nodes and isinstance(src, Mux) and isinstance(dst, Mux):
                     tie_node = _LineNode(src.name + dst.name, {dst_port,}, {src_port,})
                     all[tie_node] = route[tie_node] = tie_node
                     wire(src, src_port, tie_node, dst_port)
                     src = tie_node
-                else:
-                    dst = all[i, dst_loc, dst_inst]
-
 
                 wire(src, src_port, dst, dst_port)
 
