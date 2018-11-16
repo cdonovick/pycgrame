@@ -6,6 +6,7 @@ from mrrg import MRRG
 from design import Design
 from modeler import Modeler
 from smt_switch_types import Solver, Term, Sort
+import sys
 
 ConstraintGeneratorType = tp.Callable[[MRRG, Design, Modeler, Solver], Term]
 
@@ -62,13 +63,18 @@ def pe_exclusivity(cgra : MRRG, design : Design, vars : Modeler, solver : Solver
 def pe_legality(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
     ''' Assert ops are not placed on PE's that do not support them '''
     c = []
+    print() # debugging format print
     for pe in cgra.functional_units:
         for op in design.operations:
             if op.opcode not in pe.ops:
                 c.append(vars[pe, op] == 0)
+                # debugging
                 # solver.Assert(c[-1])
+                # print('.', end='')
+                # sys.stdout.flush()
                 # if not solver.CheckSat():
                 #     print("bad pair restriction was on {}".format((pe, op)))
+                # end debugging
     return solver.And(c)
 
 def route_exclusivity(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) -> Term:
@@ -200,12 +206,22 @@ def fix_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver)
     assert len(keys) == len(vals), "Expecting all different placements"
     grid = {}
     for pe in cgra.functional_units:
-        row, col = map(int, pe.name.split('_')[-2:])
-        grid[(row, col)] = pe
+        if 'Const' not in pe.name:
+            row, col = map(int, pe.name.split('_')[-2:])
+            grid[(row, col)] = pe
 
     c = []
+    print()
     for op in design.operations:
         if op.name in desired_placement:
             c.append(vars[grid[desired_placement[op.name]], op] == solver.TheoryConst(solver.BitVec(1), 1))
+            # debugging
+            # print('.', end='')
+            # sys.stdout.flush()
+            # solver.Assert(c[-1])
+            # if not solver.CheckSat():
+            #     print("Placing {} at {} [{}] failed".format(op.name, desired_placement[op.name], grid[desired_placement[op.name]]))
+            #     assert False
+            # end debugging
 
     return solver.And(c)

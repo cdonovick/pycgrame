@@ -54,13 +54,13 @@ init  = (
 funcs = (
         constraints.op_placement,
         constraints.pe_exclusivity,
-#        constraints.pe_legality,
         constraints.route_exclusivity,
-        constraints.init_value,
-        constraints.port_placement,
-        constraints.input_connectivity,
-        constraints.output_connectivity,
+        constraints.init_value, # Removal changes to SAT
+        constraints.port_placement, # Removal changes to SAT
+        constraints.input_connectivity, # Removal changes to SAT
+        constraints.output_connectivity, # Removal changes to SAT
         constraints.routing_resource_usage,
+        constraints.pe_legality,
 #        constraints.fix_placement
     )
 
