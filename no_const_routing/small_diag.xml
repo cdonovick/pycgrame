@@ -1,0 +1,41 @@
+<cgra>
+	<module name="fblock">
+		<input name="in5"/> <input name="in0"/> <input name="in4"/>
+		<input name="in2"/>                     <input name="in1"/>
+		<input name="in7"/> <input name="in3"/> <input name="in6"/>
+		<output name="out"/>
+		<inst name="func" module="FuncUnit" op="add sub mul div and or xor shl shr"/>
+		<inst name="const" module="ConstUnit"/>
+		<inst name="register" module="Register"/>
+		<wire name="in_a"/>
+		<wire name="in_b"/>
+		<wire name="func_out"/>
+		<connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 register.out" to="in_a in_b"/>
+		<connection select-from="in_a const.out" to="func.in_a"/>
+		<connection select-from="in_b const.out" to="func.in_b"/>
+		<connection select-from="in_a in_b func.out" to="func_out"/>
+		<connection from="func_out" to="register.in"/>
+		<connection select-from="func_out register.out" to="this.out"/>
+	</module>
+	<module name="ioblock">
+		<input name="in"/>
+		<output name="out"/>
+		<inst name="io" module="FuncUnit" op="load store"/>
+		<connection from="this.in" to="io.in_a"/>
+		<connection from="io.out" to="this.out"/>
+	</module>
+	<architecture col="6" row="6" cgra-cols="4" cgra-rows="4">
+		<diagonal
+			out-north=".out" out-east=".out" out-west=".out" out-south=".out"
+			out-northeast=".out" out-northwest=".out" out-southeast=".out" out-southwest=".out"
+			in-north=".in0" in-east=".in1" in-west=".in2" in-south=".in3"
+			in-northeast=".in4" in-northwest=".in5" in-southeast=".in6" in-southwest=".in7">
+			<interior>
+				<block module="fblock"/>
+			</interior>
+			<exterior>
+				<block module="ioblock" />
+			</exterior>
+		</diagonal>
+	</architecture>
+</cgra>
