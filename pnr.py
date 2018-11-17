@@ -11,6 +11,7 @@ import checker
 import smt_switch_types
 from constraints import ConstraintGeneratorType
 from modeler import Model, ModelReader
+import modeler
 import optimization
 from util import Timer, NullTimer
 
@@ -327,6 +328,7 @@ class PNR:
         else:
             _attest_func = attest_func
             def attest_func(cgra, design, model):
+                modeler.model_info(cgra, design, model)
                 _attest_func(cgra, design, model)
                 for f in (
                     checker.op_placement,
