@@ -4,6 +4,7 @@ import mrrg
 import design
 import functools as ft
 import operator
+import modeler
 from mrrg import MRRG, TieNode
 from design import Design
 from modeler import Model
@@ -120,6 +121,7 @@ def input_connectivity(cgra : MRRG, design : Design, model : Model) -> None:
                     i_vars += model[n, value, dst] << idx
                 
                 if not (v == 0 or _is_one_hot(i_vars)):
+                    modeler.model_info(cgra, design, model)
                     print(f'node: {node}')
                     print(f'v: {v}')
                     print(f'i_vars: {i_vars}')
