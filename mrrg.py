@@ -61,17 +61,21 @@ class _LineNode(Node):
         super().__init__(name, input_ports, output_ports)
 
     @property
-    def input(self):
+    def input(self) -> Node:
         for input in self.inputs.values(): return input
 
     @property
-    def input_port(self):
+    def input_port(self) -> str:
         for input in self.input_ports: return input
 
     @property
-    def output_port(self):
+    def output_port(self) -> str:
         for output in self.output_ports: return output
 
+class TieNode(_LineNode):
+    @property
+    def output(self) -> Node:
+        for output in self.outputs.values(): return output
 
 class FU_Port(_LineNode):
     def __init__(self,
@@ -84,8 +88,7 @@ class FU_Port(_LineNode):
         self.operand = operand
 
     @property
-    def output(self):
-        assert len(self.outputs) == 1
+    def output(self) -> Node:
         for output in self.outputs.values(): return output
 
 class Register(_LineNode):
@@ -106,6 +109,9 @@ class Mux(Node):
         super().__init__(name, input_ports, output_ports)
 
 def wire(src : Node, src_port : str, dst : Node, dst_port : str):
+    if isinstance(src, (TieNode, FU_Port)):
+        assert src_port not in src.outputs or (src.output == dst)
+
     src._outputs[src_port] = dst
     assert (dst_port not in dst.inputs) or (dst.inputs[dst_port] == src), \
             (dst, dst.inputs[dst_port], src)
@@ -131,7 +137,7 @@ def unwire(src : Node, src_port : str, dst : Node, dst_port : str):
 
 
 class MRRG:
-    def __init__(self, cgra, *, contexts=1, add_tie_nodes=True):
+    def __init__(self, cgra, *, contexts=1, add_tie_nodes=True, del_registers=True):
         all = dict()
         route = dict()
         fu = dict()
@@ -172,7 +178,28 @@ class MRRG:
                 else:
                     dst = all[i, dst_loc, dst_inst]
 
+
                 wire(src, src_port, dst, dst_port)
+
+        if del_registers:
+            for idx, reg in reg.items():
+                src = reg.input
+                src_port = src._outputs.I[reg][0]
+                wire_args = set()
+                unwire_args = set()
+                for dst in reg.outputs.values():
+                    dst_port = dst._inputs.I[reg][0]
+                    unwire_args.add((src, src_port, reg, reg.input_port))
+                    unwire_args.add((reg, reg.output_port, dst, dst_port))
+                    wire_args.add((src, src_port, dst, dst_port))
+
+                for args in unwire_args:
+                    unwire(*args)
+                for args in wire_args:
+                    wire(*args)
+
+                del all[idx]
+                del route[idx]
 
         if add_tie_nodes:
             def find_back_edge():
