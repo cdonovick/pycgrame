@@ -69,10 +69,10 @@ OPTIMIZERS = {
 
 CONFIG_MATS = [
     {
-        'incremental' : [False, True],
+        'incremental' : [False],
         'duplicate' : [None, 'duplicate_const',], #'duplicate_all',], duplicate all seems to break things not sure why
         'cutoff' : [None],
-        'optimize_final' : [False, True],
+        'optimize_final' : [False],
     },
     {
         'incremental' : [True],
@@ -84,7 +84,7 @@ CONFIG_MATS = [
         'incremental' : [True],
         'duplicate' : [None],
         'cutoff' : [0.2, 0.5],
-        'optimize_final' : [False, True],
+        'optimize_final' : [False],
     },
 ]
 
