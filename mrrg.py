@@ -137,7 +137,7 @@ def unwire(src : Node, src_port : str, dst : Node, dst_port : str):
 
 
 class MRRG:
-    def __init__(self, cgra, *, contexts=1, add_tie_nodes=True, del_registers=True):
+    def __init__(self, cgra, *, contexts=1, add_tie_nodes=True, greedy_tie_nodes = True, del_registers=True,):
         all = dict()
         route = dict()
         fu = dict()
@@ -201,7 +201,7 @@ class MRRG:
                 del all[idx]
                 del route[idx]
 
-        if add_tie_nodes:
+        if add_tie_nodes and greedy_tie_nodes:
             def find_back_edge():
                 for n in mux.values():
                     seen = set()
@@ -233,6 +233,23 @@ class MRRG:
                 wire(tie_node, src_port, dst, dst_port)
                 edge = find_back_edge()
 
+        elif add_tie_nodes:
+            wire_args = set()
+            unwire_args = set()
+            for src in mux.values():
+                for src_port, dst in src.outputs.items():
+                    if isinstance(dst, Mux):
+                        dst_port = dst._inputs.I[src][0]
+                        unwire_args.add((src, src_port, dst, dst_port))
+                        tie_node = TieNode(src.name + dst.name, {dst_port,}, {src_port,})
+                        all[tie_node] = route[tie_node] = tie_node
+                        wire_args.add((src, src_port, tie_node, dst_port))
+                        wire_args.add((tie_node, src_port, dst, dst_port))
+                        
+            for args in unwire_args:
+                unwire(*args)
+            for args in wire_args:
+                wire(*args)
 
         self._route = frozenset(route.values())
         self._all = frozenset(all.values())
