@@ -61,17 +61,21 @@ class _LineNode(Node):
         super().__init__(name, input_ports, output_ports)
 
     @property
-    def input(self):
+    def input(self) -> Node:
         for input in self.inputs.values(): return input
 
     @property
-    def input_port(self):
+    def input_port(self) -> str:
         for input in self.input_ports: return input
 
     @property
-    def output_port(self):
+    def output_port(self) -> str:
         for output in self.output_ports: return output
 
+class TieNode(_LineNode):
+    @property
+    def output(self) -> Node:
+        for output in self.outputs.values(): return output
 
 class FU_Port(_LineNode):
     def __init__(self,
@@ -84,8 +88,7 @@ class FU_Port(_LineNode):
         self.operand = operand
 
     @property
-    def output(self):
-        assert len(self.outputs) == 1
+    def output(self) -> Node:
         for output in self.outputs.values(): return output
 
 class Register(_LineNode):
@@ -106,6 +109,9 @@ class Mux(Node):
         super().__init__(name, input_ports, output_ports)
 
 def wire(src : Node, src_port : str, dst : Node, dst_port : str):
+    if isinstance(src, (TieNode, FU_Port)):
+        assert src_port not in src.outputs or (src.output == dst)
+
     src._outputs[src_port] = dst
     assert (dst_port not in dst.inputs) or (dst.inputs[dst_port] == src), \
             (dst, dst.inputs[dst_port], src)
@@ -167,18 +173,47 @@ class MRRG:
                 src_loc, src_inst, src_port = src_address
                 dst_loc, dst_inst, dst_port = dst_address
                 src = all[i, src_loc, src_inst]
+
                 if isinstance(src, Register):
+                    if contexts == 1:
+                        continue
                     dst = all[(i+1)%contexts, dst_loc, dst_inst]
                 else:
                     dst = all[i, dst_loc, dst_inst]
 
+                if isinstance(dst, Register) and contexts == 1:
+                    continue
+
                 if add_tie_nodes and isinstance(src, Mux) and isinstance(dst, Mux):
-                    tie_node = _LineNode(src.name + dst.name, {dst_port,}, {src_port,})
+                    tie_node = TieNode(src.name + dst.name, {dst_port,}, {src_port,})
                     all[tie_node] = route[tie_node] = tie_node
                     wire(src, src_port, tie_node, dst_port)
                     src = tie_node
 
                 wire(src, src_port, dst, dst_port)
+
+        if contexts == 1:
+            for idx in reg:
+                del all[idx]
+                del route[idx]
+
+
+        for n in all.values():
+            assert isinstance(n, Node)
+            for o in n.outputs.values():
+                assert isinstance(o, Node)
+                assert n != o
+                for m in o.outputs.values():
+                    assert isinstance(m, Node)
+                    assert n != m
+
+            for o in n.inputs.values():
+                assert isinstance(o, Node)
+                assert n != o
+                for m in o.inputs.values():
+                    assert isinstance(m, Node)
+                    assert n != m
+
 
         self._route = frozenset(route.values())
         self._all = frozenset(all.values())

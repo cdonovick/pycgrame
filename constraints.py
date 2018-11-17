@@ -108,7 +108,9 @@ def init_value(cgra : MRRG, design : Design, vars : Modeler, solver : Solver) ->
         for value in design.values:
             src = value.src
             v = vars[pe, src]
-            if src.duplicate:
+            if src.opcode not in pe.ops:
+               c.append(vars[pe, value] == 0)
+            elif src.duplicate:
                 v_ = vars[pe, value]
                 c.append(v == v_)
             else:
@@ -128,11 +130,14 @@ def port_placement(cgra : MRRG, design : Design, vars : Modeler, solver : Solver
             for dst in value.dsts:
                 op, operand = dst
                 if op.opcode not in pe.ops:
-                    continue
-                port = pe.operands[operand]
-                v = vars[pe, op]
-                v_ = vars[port, value, dst]
-                c.append(v == v_)
+                    for port in pe.operands.values():
+                        v_ = vars[port, value, dst]
+                        c.append(v_ == 0)
+                else:
+                    port = pe.operands[operand]
+                    v = vars[pe, op]
+                    v_ = vars[port, value, dst]
+                    c.append(v == v_)
 
     return solver.And(c)
 

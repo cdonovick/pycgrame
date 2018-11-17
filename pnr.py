@@ -7,6 +7,7 @@ from modeler import Modeler
 from design import Design
 from mrrg import MRRG
 import mrrg
+import checker
 import smt_switch_types
 from constraints import ConstraintGeneratorType
 from modeler import Model, ModelReader
@@ -323,6 +324,23 @@ class PNR:
 
         if attest_func is None:
             attest_func : ModelReader = lambda *args : True
+        else:
+            _attest_func = attest_func
+            def attest_func(cgra, design, model):
+                _attest_func(cgra, design, model)
+                for f in (
+                    checker.op_placement,
+                    checker.pe_exclusivity,
+                    checker.pe_legality,
+                    checker.route_exclusivity,
+                    checker.init_value,
+                    checker.port_placement,
+                    checker.input_connectivity,
+                    checker.output_connectivity,
+                    checker.routing_resource_usage,
+                    ):
+                    f(cgra, design, model)
+
 
         if first_cut is None:
             first_cut = lambda l, u : int(max(u - 1, (u+l)/2))
