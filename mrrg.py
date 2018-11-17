@@ -172,13 +172,40 @@ class MRRG:
                 else:
                     dst = all[i, dst_loc, dst_inst]
 
-                if add_tie_nodes and isinstance(src, Mux) and isinstance(dst, Mux):
-                    tie_node = _LineNode(src.name + dst.name, {dst_port,}, {src_port,})
-                    all[tie_node] = route[tie_node] = tie_node
-                    wire(src, src_port, tie_node, dst_port)
-                    src = tie_node
-
                 wire(src, src_port, dst, dst_port)
+
+        if add_tie_nodes:
+            def find_back_edge():
+                for n in mux.values():
+                    seen = set()
+                    stack = set()
+                    for edge in find_cycles(n, seen, stack):
+                        return edge
+                return None
+
+            def find_cycles(src : Mux, seen : set, stack : set):
+                if not src in seen:
+                    seen.add(src)
+                    stack.add(src)
+                    for src_port, dst in src.outputs.items():
+                        if not isinstance(dst, Mux):
+                            continue
+                        if dst not in seen:
+                            yield from find_cycles(dst, seen, stack)
+                        elif dst in stack:
+                            yield (src, src_port, dst, dst._inputs.I[src][0])
+                stack.remove(src)
+
+            edge = find_back_edge()
+            while edge is not None:
+                src, src_port, dst, dst_port = edge
+                unwire(src, src_port, dst, dst_port)
+                tie_node = TieNode(src.name + dst.name, {dst_port,}, {src_port,})
+                all[tie_node] = route[tie_node] = tie_node
+                wire(src, src_port, tie_node, dst_port)
+                wire(tie_node, src_port, dst, dst_port)
+                edge = find_back_edge()
+
 
         self._route = frozenset(route.values())
         self._all = frozenset(all.values())
