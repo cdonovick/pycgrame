@@ -24,6 +24,7 @@ parser.add_argument('--optimize_final', action='store_true', default=False)
 parser.add_argument('--incremental', action='store_true', default=False)
 parser.add_argument('--duplicate_const', action='store_true', default=False)
 parser.add_argument('--duplicate_all', action='store_true', default=False)
+parser.add_argument('--duplicate_reasonable', action='store_true', default=False)
 parser.add_argument('--no-tie-nodes', action='store_true', default=False, dest='ntiesnodes')
 
 args = parser.parse_args()
@@ -41,6 +42,7 @@ cutoff = args.cutoff
 optimize_final = args.optimize_final
 incremental = args.incremental
 duplicate_const = args.duplicate_const
+duplicate_reasonable = args.duplicate_reasonable
 duplicate_all = args.duplicate_all
 
 optimizer = tester.OPTIMIZERS[optimizer_name]
@@ -52,7 +54,11 @@ design = Design(mods, ties)
 cgra = adlparse(fabric_file)
 mrrg = MRRG(cgra, contexts=contexts, add_tie_nodes=not args.ntiesnodes)
 
-pnr = PNR(mrrg, design, solver, incremental=incremental, duplicate_const=duplicate_const, duplicate_all=duplicate_all)
+pnr = PNR(mrrg, design, solver,
+        incremental=incremental,
+        duplicate_const=duplicate_const,
+        duplicate_reasonable=duplicate_reasonable,
+        duplicate_all=duplicate_all)
 
 full_timer.start()
 result = pnr.optimize_design(
@@ -82,6 +88,7 @@ print(json.dumps({
         'optimize_final' : optimize_final,
         'optimizer' : optimizer_name,
         'duplicate_const' : duplicate_const,
+        'duplicate_reasonable' : duplicate_reasonable,
         'duplicate_all' : duplicate_all,
         'solver' : solver,
     },

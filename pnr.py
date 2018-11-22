@@ -32,6 +32,7 @@ class PNR:
             seed : int = 0,
             incremental : bool = False,
             duplicate_const : bool = False,
+            duplicate_reasonable : bool = False,
             duplicate_all : bool = False,):
 
 
@@ -39,6 +40,10 @@ class PNR:
         if duplicate_all:
             for op in design.operations:
                 op.allow_duplicate()
+        elif duplicate_reasonable:
+            for op in design.operations:
+                if op.opcode not in {'load', 'store', 'mul'}:
+                    op.allow_duplicate()
         elif duplicate_const:
             for op in design.operations:
                 if op.opcode == 'const':
